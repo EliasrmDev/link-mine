@@ -1,0 +1,311 @@
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-bg: #eff6ff;
+  --color-brand-text: #1d4ed8;
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+.dark {
+  --color-bg: #111827;
+  --color-bg-secondary: #1f2937;
+  --color-border: #374151;
+  --color-text: #f9fafb;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: #6b7280;
+  --color-brand: #3b82f6;
+  --color-brand-hover: #2563eb;
+  --color-brand-bg: #1e3a8a22;
+  --color-brand-text: #93c5fd;
+  --color-success: #4ade80;
+  --color-success-bg: #052e16;
+  --color-error: #f87171;
+  --color-error-bg: #450a0a;
+}
+
+html { font-size: 14px; }
+
+body {
+  width: 360px;
+  min-height: 200px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+#app { display: flex; flex-direction: column; }
+
+/* ── Focus styles ── */
+*:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.logo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-brand);
+  letter-spacing: -0.3px;
+}
+
+/* ── Views ── */
+.view { display: flex; flex-direction: column; }
+.view[hidden] { display: none; }
+
+/* ── Auth view ── */
+.auth-container {
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-desc { color: var(--color-text-secondary); font-size: 13px; }
+.auth-hint { font-size: 11px; color: var(--color-text-muted); text-align: center; }
+
+/* ── Main view ── */
+.current-page { padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+
+.page-info { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 10px; }
+
+.favicon { border-radius: 3px; flex-shrink: 0; margin-top: 2px; }
+
+.page-text { min-width: 0; }
+
+.page-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+
+.page-url {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+  margin-top: 1px;
+}
+
+.field { margin-bottom: 10px; }
+
+.label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.select {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+  appearance: auto;
+  cursor: pointer;
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
+.actions { display: flex; gap: 8px; }
+
+/* ── Status ── */
+.status {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.status.success { background: var(--color-success-bg); color: var(--color-success); }
+.status.error   { background: var(--color-error-bg);   color: var(--color-error); }
+
+/* ── Recent ── */
+.recent { padding: 10px 16px 12px; }
+
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.link-sm {
+  font-size: 11px;
+  color: var(--color-brand);
+  text-decoration: none;
+}
+.link-sm:hover { text-decoration: underline; }
+
+.recent-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.recent-item:hover { background: var(--color-bg-secondary); }
+
+.recent-item a {
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.recent-title {
+  font-size: 12px;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-domain {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-delete {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.recent-item:hover .recent-delete,
+.recent-item:focus-within .recent-delete { opacity: 1; }
+.recent-delete:hover { color: var(--color-error); background: var(--color-error-bg); }
+
+.loading-item { font-size: 12px; color: var(--color-text-muted); padding: 4px 6px; }
+.empty-item   { font-size: 12px; color: var(--color-text-muted); padding: 4px 6px; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, opacity 0.1s;
+  white-space: nowrap;
+}
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--color-brand);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background: var(--color-brand-hover); }
+
+.btn-block { width: 100%; }
+
+/* ── Icon button ── */
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+}
+.icon-btn:hover { background: var(--color-bg-secondary); }
+
+/* ── Card ── */
+.card {
+  background: var(--color-bg);
+}
+
+/* ── Loading screen ── */
+.loading-screen {
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  gap: 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

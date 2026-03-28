@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SavePath</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── Header ── -->
+    <header class="header">
+      <span class="logo">SavePath</span>
+      <button id="btn-theme" class="icon-btn" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- ── Not authenticated ── -->
+    <section id="view-auth" class="view" hidden aria-label="Sign in">
+      <div class="auth-container">
+        <p class="auth-desc">Sign in to save and sync your bookmarks.</p>
+        <button id="btn-login" class="btn btn-primary btn-block">
+          Sign in with Google
+        </button>
+        <p class="auth-hint">Your bookmarks will sync across all devices.</p>
+      </div>
+    </section>
+
+    <!-- ── Authenticated ── -->
+    <section id="view-main" class="view" hidden aria-label="Save bookmark">
+
+      <!-- Current page -->
+      <div class="current-page card" id="current-page-card">
+        <div class="page-info">
+          <img id="page-favicon" src="" alt="" width="16" height="16" class="favicon" />
+          <div class="page-text">
+            <p id="page-title" class="page-title" title=""></p>
+            <p id="page-url" class="page-url" title=""></p>
+          </div>
+        </div>
+
+        <!-- Folder selector -->
+        <div class="field">
+          <label for="folder-select" class="label">Save to folder</label>
+          <select id="folder-select" class="select">
+            <option value="">No folder</option>
+          </select>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+          <button id="btn-save" class="btn btn-primary btn-block">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            Save this page
+          </button>
+        </div>
+
+        <!-- Status message -->
+        <div id="save-status" class="status" role="status" aria-live="polite" hidden></div>
+      </div>
+
+      <!-- Recent bookmarks -->
+      <div class="recent">
+        <div class="recent-header">
+          <span class="section-label">Recent</span>
+          <a id="link-dashboard" href="#" target="_blank" rel="noopener noreferrer" class="link-sm">
+            Open dashboard →
+          </a>
+        </div>
+        <ul id="recent-list" class="recent-list" role="list" aria-label="Recent bookmarks">
+          <li class="loading-item" aria-busy="true">Loading…</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── Loading screen ── -->
+    <section id="view-loading" class="view loading-screen" aria-label="Loading">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Loading…</p>
+    </section>
+
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

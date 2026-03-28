@@ -1,0 +1,18 @@
+{
+  "name": "savepath",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/web",
+    "db:generate": "npm run db:generate --workspace=apps/web",
+    "db:push": "npm run db:push --workspace=apps/web",
+    "db:migrate": "npm run db:migrate --workspace=apps/web",
+    "db:studio": "npm run db:studio --workspace=apps/web"
+  }
+}
