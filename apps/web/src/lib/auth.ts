@@ -11,17 +11,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
-    // Uncomment to enable Microsoft login:
     MicrosoftEntraID({
       clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
       clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET,
       issuer: process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER,
     }),
-    // MicrosoftEntraId({
-    //   clientId: process.env.MICROSOFT_CLIENT_ID!,
-    //   clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
-    //   tenantId: 'common',
-    // }),
   ],
   session: {
     // JWT strategy: session data is in a signed cookie, not in DB.
