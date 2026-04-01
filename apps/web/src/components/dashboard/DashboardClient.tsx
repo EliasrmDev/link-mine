@@ -1,12 +1,38 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
-import type { Bookmark, Folder } from '@savepath/shared'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import type { Bookmark, Folder, BookmarkFilters } from '@savepath/shared'
 import { Sidebar } from './Sidebar'
 import { BookmarkGrid } from './BookmarkGrid'
 import { BookmarkForm } from './BookmarkForm'
 import { FolderForm } from './FolderForm'
 import { TopBar } from './TopBar'
+import { FilterBar } from './FilterBar'
+
+const FILTERS_STORAGE_KEY = 'savepath_filters'
+
+const DEFAULT_FILTERS: BookmarkFilters = {
+  sortBy: 'createdAt',
+  sortDir: 'desc',
+  tags: [],
+  hasReminder: false,
+}
+
+function loadFilters(): BookmarkFilters {
+  if (typeof window === 'undefined') return DEFAULT_FILTERS
+  try {
+    const raw = localStorage.getItem(FILTERS_STORAGE_KEY)
+    return raw ? { ...DEFAULT_FILTERS, ...JSON.parse(raw) } : DEFAULT_FILTERS
+  } catch {
+    return DEFAULT_FILTERS
+  }
+}
+
+function saveFilters(f: BookmarkFilters) {
+  try {
+    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(f))
+  } catch { /* ignore */ }
+}
 
 interface Props {
   initialBookmarks: Bookmark[]
@@ -21,6 +47,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null | 'all'>('all')
   const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<BookmarkFilters>(DEFAULT_FILTERS)
   const [loading, setLoading] = useState(false)
 
   // Modal state
@@ -36,15 +63,39 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
+  // Load persisted filters on mount
+  useEffect(() => {
+    setFilters(loadFilters())
+  }, [])
+
+  // Collect all unique tags from current bookmarks for FilterBar suggestions
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    bookmarks.forEach((b) => b.tags.forEach((t) => set.add(t)))
+    return Array.from(set).sort()
+  }, [bookmarks])
+
   const fetchBookmarks = useCallback(
-    async (opts: { folderId?: string | null | 'all'; q?: string; page?: number } = {}) => {
+    async (opts: {
+      folderId?: string | null | 'all'
+      q?: string
+      page?: number
+      filters?: BookmarkFilters
+    } = {}) => {
       setLoading(true)
       try {
+        const f = opts.filters ?? filters
         const params = new URLSearchParams()
         if (opts.q) params.set('q', opts.q)
         if (opts.folderId && opts.folderId !== 'all') params.set('folderId', opts.folderId)
         params.set('page', String(opts.page ?? 1))
         params.set('pageSize', '20')
+
+        if (f.tags?.length) params.set('tags', f.tags.join(','))
+        if (f.icon) params.set('icon', f.icon)
+        if (f.hasReminder) params.set('hasReminder', 'true')
+        if (f.sortBy) params.set('sortBy', f.sortBy)
+        if (f.sortDir) params.set('sortDir', f.sortDir)
 
         const res = await fetch(`/api/bookmarks?${params}`)
         if (!res.ok) throw new Error('Failed to fetch bookmarks')
@@ -55,7 +106,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
         setLoading(false)
       }
     },
-    [],
+    [filters],
   )
 
   const fetchFolders = useCallback(async () => {
@@ -77,6 +128,16 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     fetchBookmarks({ folderId: id, q: query })
   }
 
+  const handleFiltersChange = (next: BookmarkFilters) => {
+    setFilters(next)
+    saveFilters(next)
+    fetchBookmarks({ folderId: selectedFolderId, q: query, filters: next })
+  }
+
+  const handleFiltersReset = () => {
+    handleFiltersChange(DEFAULT_FILTERS)
+  }
+
   const handleBookmarkSaved = async () => {
     setBookmarkForm({ open: false })
     await fetchBookmarks({ folderId: selectedFolderId, q: query })
@@ -92,7 +153,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
     setBookmarks((prev) => prev.filter((b) => b.id !== id))
     setTotal((t) => t - 1)
-    await fetchFolders() // update counts
+    await fetchFolders()
   }
 
   const handleDeleteFolder = async (id: string) => {
@@ -101,6 +162,9 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     await Promise.all([fetchFolders(), fetchBookmarks({ folderId: 'all', q: query })])
     if (selectedFolderId === id) setSelectedFolderId('all')
   }
+
+  // Show old-links section only when not actively filtering/searching
+  const showOldLinks = !query && !(filters.tags?.length) && !filters.icon && !filters.hasReminder
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
@@ -123,6 +187,13 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           onAddBookmark={() => setBookmarkForm({ open: true })}
         />
 
+        <FilterBar
+          filters={filters}
+          allTags={allTags}
+          onChange={handleFiltersChange}
+          onReset={handleFiltersReset}
+        />
+
         <main className="flex-1 overflow-y-auto p-6" id="main-content">
           <BookmarkGrid
             bookmarks={bookmarks}
@@ -131,6 +202,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
             folders={folders}
             onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
             onDelete={handleDeleteBookmark}
+            showOldLinks={showOldLinks}
           />
         </main>
       </div>

@@ -26,6 +26,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { name, parentId } = parsed.data
 
+  // Check for duplicate name in the same level
+  if (name) {
+    const targetParentId = parentId !== undefined ? parentId : existing.parentId
+    const duplicate = await prisma.folder.findFirst({
+      where: { userId: auth.userId, parentId: targetParentId, name, NOT: { id } },
+    })
+    if (duplicate) return badRequest('A folder with this name already exists')
+  }
+
   // Enforce max 2 levels when changing parent
   if (parentId !== undefined && parentId !== null) {
     if (parentId === id) return badRequest('Folder cannot be its own parent')

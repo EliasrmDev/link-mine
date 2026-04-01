@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
 
   const { name, parentId } = parsed.data
 
+  // Check for duplicate name in the same level
+  const duplicate = await prisma.folder.findFirst({
+    where: { userId: auth.userId, parentId: parentId ?? null, name },
+  })
+  if (duplicate) return badRequest('A folder with this name already exists')
+
   // Enforce max 2 levels
   if (parentId) {
     const parent = await prisma.folder.findFirst({

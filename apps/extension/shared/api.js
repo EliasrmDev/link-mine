@@ -39,11 +39,16 @@ export async function apiSaveBookmark(bookmark, token) {
 /**
  * Fetch recent bookmarks (first page).
  */
-export async function apiFetchBookmarks(token, { folderId, q } = {}) {
+export async function apiFetchBookmarks(token, { folderId, q, tags, icon, hasReminder, sortBy, sortDir } = {}) {
   try {
     const params = new URLSearchParams({ pageSize: '10' })
-    if (folderId) params.set('folderId', folderId)
-    if (q) params.set('q', q)
+    if (folderId)    params.set('folderId', folderId)
+    if (q)           params.set('q', q)
+    if (tags?.length) params.set('tags', tags.join(','))
+    if (icon)        params.set('icon', icon)
+    if (hasReminder) params.set('hasReminder', 'true')
+    if (sortBy)      params.set('sortBy', sortBy)
+    if (sortDir)     params.set('sortDir', sortDir)
 
     const res = await fetch(`${BASE_URL}/api/bookmarks?${params}`, {
       headers: authHeaders(token),
@@ -53,6 +58,50 @@ export async function apiFetchBookmarks(token, { folderId, q } = {}) {
     return { ok: true, bookmarks: data.bookmarks, total: data.total }
   } catch {
     return { ok: false, bookmarks: [] }
+  }
+}
+
+/**
+ * Fetch bookmarks with due reminders (reminderDate <= now).
+ * Returns { ok, count, bookmarks }
+ */
+export async function apiFetchDueReminders(token) {
+  try {
+    const params = new URLSearchParams({
+      hasReminder: 'true',
+      sortBy: 'reminderDate',
+      sortDir: 'asc',
+      pageSize: '50',
+    })
+    const res = await fetch(`${BASE_URL}/api/bookmarks?${params}`, {
+      headers: authHeaders(token),
+    })
+    if (!res.ok) return { ok: false, count: 0, bookmarks: [] }
+    const data = await res.json()
+
+    // Filter client-side for bookmarks where reminderDate <= now
+    const now = Date.now()
+    const due = (data.bookmarks ?? []).filter(
+      (b) => b.reminderDate && new Date(b.reminderDate).getTime() <= now,
+    )
+    return { ok: true, count: due.length, bookmarks: due }
+  } catch {
+    return { ok: false, count: 0, bookmarks: [] }
+  }
+}
+
+/**
+ * Record that the user opened a bookmark link (updates lastAccessed).
+ */
+export async function apiUpdateAccess(id, token) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/bookmarks/${id}/access`, {
+      method: 'PATCH',
+      headers: authHeaders(token),
+    })
+    return { ok: res.ok || res.status === 204 }
+  } catch {
+    return { ok: false }
   }
 }
 
@@ -87,8 +136,7 @@ export async function apiDeleteBookmark(id, token) {
 }
 
 /**
- * Check if the token is still valid by hitting the session endpoint.
- * Returns the user info or null.
+ * Check if the token is still valid.
  */
 export async function apiCheckAuth(token) {
   try {

@@ -7,6 +7,8 @@ const UpdateSchema = z.object({
   url: z.string().url().optional(),
   title: z.string().min(1).max(500).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
+  icon: z.string().max(10).nullable().optional(),
+  reminderDate: z.string().datetime().nullable().optional(),
   folderId: z.string().cuid().nullable().optional(),
 })
 
@@ -43,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const parsed = UpdateSchema.safeParse(body)
   if (!parsed.success) return badRequest(parsed.error.issues[0].message)
 
-  const { folderId, ...rest } = parsed.data
+  const { folderId, reminderDate, ...rest } = parsed.data
 
   // Verify folder ownership if changing folder
   if (folderId !== undefined && folderId !== null) {
@@ -56,7 +58,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   try {
     const updated = await prisma.bookmark.update({
       where: { id },
-      data: { ...rest, ...(folderId !== undefined ? { folderId } : {}) },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: {
+        ...rest,
+        ...(folderId !== undefined ? { folderId } : {}),
+        ...(reminderDate !== undefined
+          ? { reminderDate: reminderDate ? new Date(reminderDate) : null }
+          : {}),
+      } as any,
       include: { folder: { select: { id: true, name: true } } },
     })
     return NextResponse.json(updated)

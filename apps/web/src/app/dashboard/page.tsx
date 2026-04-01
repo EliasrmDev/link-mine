@@ -45,10 +45,14 @@ export default async function DashboardPage() {
         })),
     }))
 
-  const serializedBookmarks = bookmarks.map((b) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serializedBookmarks = (bookmarks as any[]).map((b) => ({
     ...b,
-    createdAt: b.createdAt.toISOString(),
-    updatedAt: b.updatedAt.toISOString(),
+    icon:         b.icon ?? null,
+    reminderDate: b.reminderDate ? (b.reminderDate as Date).toISOString() : null,
+    lastAccessed: b.lastAccessed ? (b.lastAccessed as Date).toISOString() : null,
+    createdAt:    b.createdAt.toISOString(),
+    updatedAt:    b.updatedAt.toISOString(),
   }))
 
   return (

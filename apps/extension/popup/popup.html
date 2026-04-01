@@ -34,6 +34,15 @@
     <!-- ── Authenticated ── -->
     <section id="view-main" class="view" hidden aria-label="Save bookmark">
 
+      <!-- Reminder banner (shown when reminders are due) -->
+      <div id="reminder-banner" class="reminder-banner" hidden role="alert" aria-live="polite">
+        <span class="reminder-icon" aria-hidden="true">⏰</span>
+        <span id="reminder-text" class="reminder-text"></span>
+        <a id="reminder-link" href="#" target="_blank" rel="noopener noreferrer" class="reminder-link">
+          View →
+        </a>
+      </div>
+
       <!-- Current page -->
       <div class="current-page card" id="current-page-card">
         <div class="page-info">

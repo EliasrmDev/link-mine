@@ -12,11 +12,17 @@ interface Props {
   onClose: () => void
 }
 
+const PRESET_ICONS = ['🔖', '📌', '⭐', '🔥', '📚', '💡', '🎯', '🛠️', '📝', '🔗']
+
 export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClose }: Props) {
   const isEditing = !!bookmark
   const [url, setUrl] = useState(bookmark?.url ?? '')
   const [title, setTitle] = useState(bookmark?.title ?? '')
   const [tagInput, setTagInput] = useState(bookmark?.tags.join(', ') ?? '')
+  const [icon, setIcon] = useState(bookmark?.icon ?? '')
+  const [reminderDate, setReminderDate] = useState(
+    bookmark?.reminderDate ? bookmark.reminderDate.slice(0, 10) : '',
+  )
   const [folderId, setFolderId] = useState<string>(
     bookmark?.folderId ?? defaultFolderId ?? '',
   )
@@ -49,6 +55,8 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
         url,
         title,
         tags,
+        icon: icon || null,
+        reminderDate: reminderDate ? new Date(reminderDate).toISOString() : null,
         folderId: folderId || null,
       }
 
@@ -119,6 +127,40 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
             />
           </div>
 
+          {/* Icon */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Icon
+            </label>
+            <div className="flex flex-wrap items-center gap-1">
+              {PRESET_ICONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => setIcon(icon === emoji ? '' : emoji)}
+                  className={`rounded p-1 text-base leading-none transition-colors ${
+                    icon === emoji
+                      ? 'bg-brand-100 ring-1 ring-brand-500 dark:bg-brand-900/40'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  aria-label={`Icon ${emoji}`}
+                  aria-pressed={icon === emoji}
+                >
+                  {emoji}
+                </button>
+              ))}
+              <input
+                type="text"
+                value={icon}
+                onChange={(e) => setIcon(e.target.value.slice(0, 10))}
+                placeholder="custom"
+                maxLength={10}
+                className="input w-20 py-1 text-center"
+                aria-label="Custom icon"
+              />
+            </div>
+          </div>
+
           <div>
             <label htmlFor="bm-tags" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Tags
@@ -131,6 +173,30 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
               placeholder="design, tools, reading (comma-separated)"
               className="input"
             />
+          </div>
+
+          {/* Reminder date */}
+          <div>
+            <label htmlFor="bm-reminder" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Reminder date
+            </label>
+            <input
+              id="bm-reminder"
+              type="date"
+              value={reminderDate}
+              onChange={(e) => setReminderDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
+              className="input"
+            />
+            {reminderDate && (
+              <button
+                type="button"
+                onClick={() => setReminderDate('')}
+                className="mt-1 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                Clear reminder
+              </button>
+            )}
           </div>
 
           <div>

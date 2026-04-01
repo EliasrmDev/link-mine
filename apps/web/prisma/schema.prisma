@@ -74,26 +74,31 @@ model Folder {
   updatedAt DateTime   @updatedAt
 
   // Max 2 levels enforced in application logic, not DB
+  @@unique([userId, parentId, name])
   @@index([userId])
   @@index([parentId])
 }
 
 model Bookmark {
-  id        String   @id @default(cuid())
-  url       String
-  title     String
-  tags      String[]
-  folderId  String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String    @id @default(cuid())
+  url          String
+  title        String
+  tags         String[]
+  icon         String?
+  reminderDate DateTime?
+  lastAccessed DateTime?
+  folderId     String?
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder       Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // One bookmark per URL per user
   @@unique([userId, url])
   @@index([userId])
   @@index([folderId])
+  @@index([reminderDate])
 }
 
 // Long-lived token issued to Chrome extension

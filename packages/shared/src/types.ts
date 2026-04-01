@@ -15,6 +15,9 @@ export interface Bookmark {
   url: string
   title: string
   tags: string[]
+  icon: string | null
+  reminderDate: string | null
+  lastAccessed: string | null
   folderId: string | null
   folder?: Pick<Folder, 'id' | 'name'>
   createdAt: string
@@ -27,6 +30,8 @@ export interface CreateBookmarkInput {
   url: string
   title: string
   tags?: string[]
+  icon?: string | null
+  reminderDate?: string | null
   folderId?: string | null
 }
 
@@ -34,7 +39,20 @@ export interface UpdateBookmarkInput {
   url?: string
   title?: string
   tags?: string[]
+  icon?: string | null
+  reminderDate?: string | null
+  lastAccessed?: string | null
   folderId?: string | null
+}
+
+export interface BookmarkFilters {
+  q?: string
+  tags?: string[]
+  icon?: string
+  hasReminder?: boolean
+  sortBy?: 'createdAt' | 'reminderDate' | 'lastAccessed'
+  sortDir?: 'asc' | 'desc'
+  folderId?: string | null | 'all'
 }
 
 export interface CreateFolderInput {
