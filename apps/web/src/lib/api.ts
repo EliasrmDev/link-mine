@@ -1,30 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from './auth'
 import { prisma } from './prisma'
+import { isJwt, verifyExtensionAccessToken } from './jwt'
 
 /**
  * Resolves the authenticated user ID from either:
  *   1. A valid NextAuth JWT session (web dashboard)
- *   2. A valid extension Bearer token (Chrome extension)
+ *   2. A short-lived extension JWT access token (fast — no DB lookup)
+ *   3. A long-lived extension refresh token (DB lookup — backward compat)
  *
- * Returns null if neither is present/valid.
+ * Returns null if none is present/valid.
  */
 export async function resolveUserId(request: NextRequest): Promise<string | null> {
   // 1. Try NextAuth session (web dashboard calls)
   const session = await auth()
   if (session?.user?.id) return session.user.id
 
-  // 2. Try extension Bearer token
+  // 2. Try Bearer token
   const authHeader = request.headers.get('Authorization')
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7)
-    const extensionToken = await prisma.extensionToken.findUnique({
-      where: { token },
-      select: { userId: true, expiresAt: true },
-    })
-    if (extensionToken && extensionToken.expiresAt > new Date()) {
-      return extensionToken.userId
-    }
+  if (!authHeader?.startsWith('Bearer ')) return null
+
+  const token = authHeader.slice(7)
+
+  // 2a. JWT access token — verified locally, no DB hit
+  if (isJwt(token)) {
+    return await verifyExtensionAccessToken(token)
+  }
+
+  // 2b. Opaque refresh token — DB lookup (backward compatibility)
+  const extensionToken = await prisma.extensionToken.findUnique({
+    where: { token },
+    select: { userId: true, expiresAt: true },
+  })
+  if (extensionToken && extensionToken.expiresAt > new Date()) {
+    return extensionToken.userId
   }
 
   return null

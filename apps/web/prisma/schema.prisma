@@ -101,14 +101,16 @@ model Bookmark {
   @@index([reminderDate])
 }
 
-// Long-lived token issued to Chrome extension
+// Long-lived refresh token issued to Chrome extension
+// Short-lived JWT access tokens are derived from this token via POST /api/extension/refresh
 model ExtensionToken {
-  id        String   @id @default(cuid())
-  token     String   @unique @default(cuid())
+  id        String    @id @default(cuid())
+  token     String    @unique @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label     String   @default("Chrome Extension")
-  createdAt DateTime @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String    @default("Chrome Extension")
+  lastUsed  DateTime?
+  createdAt DateTime  @default(now())
   expiresAt DateTime
 
   @@index([userId])

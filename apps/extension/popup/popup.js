@@ -3,7 +3,14 @@
  * Pure vanilla JS — no build step required.
  */
 
-import { getToken, clearToken, cacheFolders, getCachedFolders, addPending, getReminderCount } from '../shared/storage.js'
+import {
+  getRefreshToken,
+  clearAllTokens,
+  cacheFolders,
+  getCachedFolders,
+  addPending,
+  getReminderCount,
+} from '../shared/storage.js'
 import {
   apiCheckAuth,
   apiFetchBookmarks,
@@ -11,6 +18,7 @@ import {
   apiSaveBookmark,
   apiDeleteBookmark,
   apiUpdateAccess,
+  apiRevokeToken,
   BASE_URL,
 } from '../shared/api.js'
 
@@ -31,6 +39,7 @@ const viewMain     = $('view-main')
 const btnLogin     = $('btn-login')
 const btnSave      = $('btn-save')
 const btnTheme     = $('btn-theme')
+const btnLogout    = $('btn-logout')
 
 const pageTitle    = $('page-title')
 const pageUrl      = $('page-url')
@@ -46,8 +55,8 @@ const reminderLink   = $('reminder-link')
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-let currentTab = null
-let token = null
+let currentTab   = null
+let refreshToken = null
 
 // ─── Initialise ───────────────────────────────────────────────────────────────
 
@@ -63,19 +72,47 @@ async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   currentTab = tab
 
-  // Check auth
-  token = await getToken()
-  if (!token || !(await apiCheckAuth(token))) {
-    if (token) await clearToken()
-    token = null
+  // Check for stored refresh token
+  refreshToken = await getRefreshToken()
+  if (!refreshToken) {
     showView('auth')
     return
   }
 
+  // Validate: try to obtain a valid access token (will use cache or refresh)
+  const isValid = await apiCheckAuth(refreshToken)
+  if (!isValid) {
+    // Refresh token expired or revoked → clear everything and prompt re-login
+    await clearAllTokens()
+    refreshToken = null
+    showView('auth')
+    return
+  }
+
+  // Auth OK — show logout button and populate the UI in parallel
+  btnLogout.hidden = false
   showView('main')
   populateCurrentTab()
   await Promise.all([loadFolders(), loadRecent(), showReminderBanner()])
 }
+
+// ─── Logout ───────────────────────────────────────────────────────────────────
+
+async function logout() {
+  // Show auth view immediately — don't wait for network
+  btnLogout.hidden = true
+  showView('auth')
+
+  // Revoke server-side in background (best-effort)
+  if (refreshToken) {
+    apiRevokeToken(refreshToken).catch(() => {})
+  }
+
+  await clearAllTokens()
+  refreshToken = null
+}
+
+btnLogout.addEventListener('click', logout)
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
@@ -123,7 +160,8 @@ async function loadFolders() {
   let folders = await getCachedFolders()
 
   if (!folders) {
-    const result = await apiFetchFolders(token)
+    const result = await apiFetchFolders(refreshToken)
+    if (result.authError) { await handleAuthError(); return }
     if (result.ok) {
       folders = result.folders
       await cacheFolders(folders)
@@ -158,7 +196,8 @@ function addOption(select, value, text) {
 // ─── Recent bookmarks ─────────────────────────────────────────────────────────
 
 async function loadRecent() {
-  const result = await apiFetchBookmarks(token)
+  const result = await apiFetchBookmarks(refreshToken)
+  if (result.authError) { await handleAuthError(); return }
   renderRecent(result.bookmarks ?? [])
 }
 
@@ -179,26 +218,28 @@ function renderRecent(bookmarks) {
 
     const iconHtml = bm.icon
       ? `<span class="recent-icon" aria-hidden="true">${escapeHtml(bm.icon)}</span>`
-      : `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=16" alt="" width="14" height="14" class="favicon"
-               onerror="this.style.display='none'" />`
+      : `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=16"
+               alt="" width="14" height="14" class="favicon" onerror="this.style.display='none'" />`
 
     li.innerHTML = `
       ${iconHtml}
-      <a href="${escapeAttr(bm.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttr(bm.title)}" data-id="${escapeAttr(bm.id)}">
+      <a href="${escapeAttr(bm.url)}" target="_blank" rel="noopener noreferrer"
+         title="${escapeAttr(bm.title)}" data-id="${escapeAttr(bm.id)}">
         <span class="recent-title">${escapeHtml(bm.title)}</span>
         <span class="recent-domain">${escapeHtml(domain)}</span>
       </a>
       ${isReminderDue ? '<span class="recent-reminder-badge" title="Reminder due" aria-label="Reminder due">⏰</span>' : ''}
-      <button class="recent-delete" data-id="${escapeAttr(bm.id)}" aria-label="Delete ${escapeAttr(bm.title)}">
+      <button class="recent-delete" data-id="${escapeAttr(bm.id)}"
+              aria-label="Delete ${escapeAttr(bm.title)}">
         <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     `
 
-    // Track lastAccessed on link click
+    // Track lastAccessed on link click (fire-and-forget)
     li.querySelector('a').addEventListener('click', () => {
-      apiUpdateAccess(bm.id, token)
+      apiUpdateAccess(bm.id, refreshToken)
     })
 
     // Delete handler
@@ -206,7 +247,7 @@ function renderRecent(bookmarks) {
       e.preventDefault()
       e.stopPropagation()
       const id = e.currentTarget.dataset.id
-      await apiDeleteBookmark(id, token)
+      await apiDeleteBookmark(id, refreshToken)
       li.remove()
     })
 
@@ -227,7 +268,12 @@ btnSave.addEventListener('click', async () => {
     folderId: folderSelect.value || null,
   }
 
-  const result = await apiSaveBookmark(bookmark, token)
+  const result = await apiSaveBookmark(bookmark, refreshToken)
+
+  if (result.authError) {
+    await handleAuthError()
+    return
+  }
 
   if (result.ok) {
     showStatus('Saved!', 'success')
@@ -235,6 +281,7 @@ btnSave.addEventListener('click', async () => {
     await loadRecent()
   } else if (result.status === 409) {
     showStatus('Already saved.', 'success')
+    btnSave.disabled = false
   } else if (result.status === 0) {
     await addPending(bookmark)
     showStatus('Saved offline — will sync when online.', 'success')
@@ -249,6 +296,15 @@ function showStatus(message, type) {
   saveStatus.className = `status ${type}`
   saveStatus.hidden = false
   setTimeout(() => { saveStatus.hidden = true }, 3500)
+}
+
+// ─── Auth error recovery ──────────────────────────────────────────────────────
+
+async function handleAuthError() {
+  await clearAllTokens()
+  refreshToken = null
+  btnLogout.hidden = true
+  showView('auth')
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
@@ -269,10 +325,8 @@ btnTheme.addEventListener('click', async () => {
 
 function escapeHtml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 }
 

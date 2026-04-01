@@ -21,19 +21,31 @@ export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props)
 
     async function connect() {
       try {
-        // 1. Get token from our API
+        // 1. Get tokens from our API (returns refresh + access token)
         const res = await fetch('/api/extension/connect', { method: 'POST' })
         if (!res.ok) throw new Error('Failed to get token')
-        const { token } = await res.json()
+        const data = await res.json()
 
-        // 2. Send token to extension via chrome.runtime.sendMessage
+        // 2. Send tokens to extension via chrome.runtime.sendMessage
+        //    We forward both the refresh token and the pre-issued access token
+        //    so the extension is immediately ready without a second round-trip.
         if (extensionId && typeof chrome !== 'undefined' && chrome.runtime) {
-          chrome.runtime.sendMessage(extensionId, { type: 'SAVEPATH_AUTH_TOKEN', token }, () => {
-            if (chrome.runtime.lastError) {
-              // Extension not installed or ID mismatch — show token for manual entry
-              console.warn('Extension message failed:', chrome.runtime.lastError)
-            }
-          })
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(chrome as any).runtime.sendMessage(
+            extensionId,
+            {
+              type:                'SAVEPATH_AUTH_TOKEN',
+              token:               data.token,               // backward compat
+              accessToken:         data.accessToken,
+              accessTokenExpiresAt: data.accessTokenExpiresAt,
+            },
+            () => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              if ((chrome as any).runtime.lastError) {
+                console.warn('Extension message failed:', (chrome as any).runtime.lastError)
+              }
+            },
+          )
         }
 
         setStatus('success')
