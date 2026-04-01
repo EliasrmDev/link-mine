@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest, notFound, forbidden } from '@/lib/api'
+import { broadcastToUser } from '@/lib/sse'
 
 const UpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -54,6 +55,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     include: { _count: { select: { bookmarks: true } } },
   })
 
+  broadcastToUser(auth.userId, { type: 'folders:changed' })
   return NextResponse.json(updated)
 }
 
@@ -69,5 +71,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   // Bookmarks in this folder will have folderId set to null (SetNull rule in schema)
   await prisma.folder.delete({ where: { id } })
+  broadcastToUser(auth.userId, { type: 'folders:changed' })
   return new NextResponse(null, { status: 204 })
 }

@@ -52,11 +52,14 @@ const linkDashboard = $('link-dashboard')
 const reminderBanner = $('reminder-banner')
 const reminderText   = $('reminder-text')
 const reminderLink   = $('reminder-link')
+const recentSearch   = $('recent-search')
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-let currentTab   = null
-let refreshToken = null
+let currentTab    = null
+let refreshToken  = null
+let allBookmarks  = []
+let searchTimeout = null
 
 // ─── Initialise ───────────────────────────────────────────────────────────────
 
@@ -157,19 +160,12 @@ function populateCurrentTab() {
 // ─── Folders ─────────────────────────────────────────────────────────────────
 
 async function loadFolders() {
-  let folders = await getCachedFolders()
+  // Always fetch fresh on popup open — avoids stale folder list
+  const result = await apiFetchFolders(refreshToken)
+  if (result.authError) { await handleAuthError(); return }
 
-  if (!folders) {
-    const result = await apiFetchFolders(refreshToken)
-    if (result.authError) { await handleAuthError(); return }
-    if (result.ok) {
-      folders = result.folders
-      await cacheFolders(folders)
-    } else {
-      folders = []
-    }
-  }
-
+  const folders = result.ok ? result.folders : (await getCachedFolders() ?? [])
+  if (result.ok) await cacheFolders(folders)
   populateFolderSelect(folders)
 }
 
@@ -195,17 +191,18 @@ function addOption(select, value, text) {
 
 // ─── Recent bookmarks ─────────────────────────────────────────────────────────
 
-async function loadRecent() {
-  const result = await apiFetchBookmarks(refreshToken)
+async function loadRecent(q = '') {
+  const result = await apiFetchBookmarks(refreshToken, q ? { q } : undefined)
   if (result.authError) { await handleAuthError(); return }
-  renderRecent(result.bookmarks ?? [])
+  allBookmarks = result.bookmarks ?? []
+  renderRecent(allBookmarks)
 }
 
 function renderRecent(bookmarks) {
   recentList.innerHTML = ''
 
   if (bookmarks.length === 0) {
-    recentList.innerHTML = '<li class="empty-item">No bookmarks yet.</li>'
+    recentList.innerHTML = '<li class="empty-item">No bookmarks found.</li>'
     return
   }
 
@@ -242,18 +239,52 @@ function renderRecent(bookmarks) {
       apiUpdateAccess(bm.id, refreshToken)
     })
 
-    // Delete handler
-    li.querySelector('.recent-delete').addEventListener('click', async (e) => {
+    // Delete: show inline confirm first
+    li.querySelector('.recent-delete').addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
-      const id = e.currentTarget.dataset.id
-      await apiDeleteBookmark(id, refreshToken)
-      li.remove()
+      showDeleteConfirm(li, bm.id)
     })
 
     recentList.appendChild(li)
   }
 }
+
+function showDeleteConfirm(li, id) {
+  const deleteBtn = li.querySelector('.recent-delete')
+  deleteBtn.hidden = true
+
+  const confirm = document.createElement('div')
+  confirm.className = 'recent-delete-confirm'
+  confirm.innerHTML = `
+    <span>Delete?</span>
+    <button class="confirm-yes" aria-label="Confirm delete">Yes</button>
+    <button class="confirm-no" aria-label="Cancel delete">No</button>
+  `
+
+  confirm.querySelector('.confirm-yes').addEventListener('click', async (e) => {
+    e.stopPropagation()
+    await apiDeleteBookmark(id, refreshToken)
+    li.remove()
+  })
+
+  confirm.querySelector('.confirm-no').addEventListener('click', (e) => {
+    e.stopPropagation()
+    confirm.remove()
+    deleteBtn.hidden = false
+  })
+
+  li.appendChild(confirm)
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+recentSearch.addEventListener('input', () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    loadRecent(recentSearch.value.trim())
+  }, 300)
+})
 
 // ─── Save current page ────────────────────────────────────────────────────────
 

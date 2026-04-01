@@ -8,6 +8,7 @@ import { BookmarkForm } from './BookmarkForm'
 import { FolderForm } from './FolderForm'
 import { TopBar } from './TopBar'
 import { FilterBar } from './FilterBar'
+import { ConfirmModal } from '../ui/ConfirmModal'
 
 const FILTERS_STORAGE_KEY = 'savepath_filters'
 
@@ -41,10 +42,26 @@ interface Props {
   user: { name: string; image: string | null }
 }
 
+function countBookmarksInFolderTree(folder: Folder): number {
+  const ownCount = folder._count?.bookmarks ?? 0
+  const childrenCount = (folder.children ?? []).reduce(
+    (sum, child) => sum + countBookmarksInFolderTree(child),
+    0,
+  )
+  return ownCount + childrenCount
+}
+
+function countBookmarksInFolders(folders: Folder[]): number {
+  return folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
+}
+
 export function DashboardClient({ initialBookmarks, initialTotal, initialFolders, user }: Props) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
   const [total, setTotal] = useState(initialTotal)
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
+  const [unsortedCount, setUnsortedCount] = useState(
+    Math.max(initialTotal - countBookmarksInFolders(initialFolders), 0),
+  )
   const [selectedFolderId, setSelectedFolderId] = useState<string | null | 'all'>('all')
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<BookmarkFilters>(DEFAULT_FILTERS)
@@ -60,12 +77,49 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     folder?: Folder
     parentId?: string | null
   }>({ open: false })
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean
+    bookmarkId?: string
+    bookmarkTitle?: string
+  }>({ open: false })
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
   // Load persisted filters on mount
   useEffect(() => {
     setFilters(loadFilters())
+  }, [])
+
+  // SSE subscription for real-time sync
+  useEffect(() => {
+    const es = new EventSource('/api/sync/stream')
+
+    es.addEventListener('bookmark:saved', (e) => {
+      const bookmark: Bookmark = JSON.parse((e as MessageEvent).data)
+      setBookmarks((prev) => {
+        const idx = prev.findIndex((b) => b.id === bookmark.id)
+        if (idx !== -1) {
+          const next = [...prev]
+          next[idx] = bookmark
+          return next
+        }
+        return [bookmark, ...prev]
+      })
+      setTotal((t) => t)
+    })
+
+    es.addEventListener('bookmark:deleted', (e) => {
+      const { id } = JSON.parse((e as MessageEvent).data)
+      setBookmarks((prev) => prev.filter((b) => b.id !== id))
+      setTotal((t) => Math.max(t - 1, 0))
+    })
+
+    es.addEventListener('folders:changed', () => {
+      fetchFolders()
+    })
+
+    return () => es.close()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Collect all unique tags from current bookmarks for FilterBar suggestions
@@ -110,9 +164,19 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   )
 
   const fetchFolders = useCallback(async () => {
-    const res = await fetch('/api/folders')
-    if (!res.ok) return
-    setFolders(await res.json())
+    const [foldersRes, unsortedRes] = await Promise.all([
+      fetch('/api/folders'),
+      fetch('/api/bookmarks?folderId=none&page=1&pageSize=1'),
+    ])
+
+    if (foldersRes.ok) {
+      setFolders(await foldersRes.json())
+    }
+
+    if (unsortedRes.ok) {
+      const data = await unsortedRes.json()
+      setUnsortedCount(data.total ?? 0)
+    }
   }, [])
 
   const handleSearch = (q: string) => {
@@ -149,8 +213,20 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     await fetchFolders()
   }
 
-  const handleDeleteBookmark = async (id: string) => {
-    await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
+  const handleDeleteBookmark = (id: string) => {
+    const bookmark = bookmarks.find((b) => b.id === id)
+    setDeleteConfirm({ open: true, bookmarkId: id, bookmarkTitle: bookmark?.title })
+  }
+
+  const doDeleteBookmark = async () => {
+    const id = deleteConfirm.bookmarkId
+    if (!id) return
+    setDeleteConfirm({ open: false })
+    const res = await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      alert('Could not delete bookmark. Please try again.')
+      return
+    }
     setBookmarks((prev) => prev.filter((b) => b.id !== id))
     setTotal((t) => t - 1)
     await fetchFolders()
@@ -171,6 +247,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
       {/* Sidebar */}
       <Sidebar
         folders={folders}
+        unsortedCount={unsortedCount}
         selectedFolderId={selectedFolderId}
         onSelectFolder={handleFolderSelect}
         onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
@@ -225,6 +302,21 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           folders={folders}
           onSave={handleFolderSaved}
           onClose={() => setFolderForm({ open: false })}
+        />
+      )}
+
+      {deleteConfirm.open && (
+        <ConfirmModal
+          title="Delete bookmark?"
+          description={
+            deleteConfirm.bookmarkTitle
+              ? `"${deleteConfirm.bookmarkTitle}" will be permanently removed.`
+              : 'This bookmark will be permanently removed.'
+          }
+          confirmLabel="Delete"
+          destructive
+          onConfirm={doDeleteBookmark}
+          onCancel={() => setDeleteConfirm({ open: false })}
         />
       )}
     </div>

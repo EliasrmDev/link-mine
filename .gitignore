@@ -9,3 +9,4 @@ prisma/migrations/
 apps/extension/dist/
 *.tsbuildinfo
 settings.local.json
+com.chrome.devtools.json

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import type { Bookmark, Folder } from '@savepath/shared'
+import { PRESET_ICONS } from '@savepath/shared'
 import { Modal } from '../ui/Modal'
 
 interface Props {
@@ -11,8 +12,6 @@ interface Props {
   onSave: () => void
   onClose: () => void
 }
-
-const PRESET_ICONS = ['🔖', '📌', '⭐', '🔥', '📚', '💡', '🎯', '🛠️', '📝', '🔗']
 
 export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClose }: Props) {
   const isEditing = !!bookmark

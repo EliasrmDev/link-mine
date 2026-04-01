@@ -115,7 +115,10 @@ async function syncPending() {
   const remaining = []
   for (const bookmark of pendingBookmarks) {
     const result = await apiSaveBookmark(bookmark, refreshToken)
-    if (!result.ok && !result.authError) remaining.push(bookmark)
+
+    // 409 means the bookmark is already in the server; treat it as synced
+    // so we don't retry forever on every alarm tick.
+    if (!result.ok && !result.authError && result.status !== 409) remaining.push(bookmark)
     if (result.authError) break // no point retrying if not authenticated
   }
 

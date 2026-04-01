@@ -5,6 +5,7 @@ import type { Folder } from '@savepath/shared'
 
 interface Props {
   folders: Folder[]
+  unsortedCount: number
   selectedFolderId: string | null | 'all'
   onSelectFolder: (id: string | null | 'all') => void
   onAddFolder: (parentId?: string | null) => void
@@ -14,12 +15,16 @@ interface Props {
 
 export function Sidebar({
   folders,
+  unsortedCount,
   selectedFolderId,
   onSelectFolder,
   onAddFolder,
   onEditFolder,
   onDeleteFolder,
 }: Props) {
+  const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
+  const allBookmarksCount = totalBookmarksInTree + unsortedCount
+
   return (
     <nav
       aria-label="Folders"
@@ -35,7 +40,7 @@ export function Sidebar({
         {/* All bookmarks */}
         <SidebarItem
           label="All bookmarks"
-          count={folders.reduce((n, f) => n + (f._count?.bookmarks ?? 0), 0)}
+          count={allBookmarksCount}
           selected={selectedFolderId === 'all'}
           onSelect={() => onSelectFolder('all')}
           icon={
@@ -117,6 +122,15 @@ export function Sidebar({
       </div>
     </nav>
   )
+}
+
+function countBookmarksInFolderTree(folder: Folder): number {
+  const ownCount = folder._count?.bookmarks ?? 0
+  const childrenCount = (folder.children ?? []).reduce(
+    (sum, child) => sum + countBookmarksInFolderTree(child),
+    0,
+  )
+  return ownCount + childrenCount
 }
 
 function SidebarItem({

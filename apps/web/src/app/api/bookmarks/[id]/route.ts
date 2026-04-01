@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest, notFound, forbidden } from '@/lib/api'
+import { broadcastToUser } from '@/lib/sse'
 
 const UpdateSchema = z.object({
   url: z.string().url().optional(),
@@ -68,6 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       } as any,
       include: { folder: { select: { id: true, name: true } } },
     })
+    broadcastToUser(auth.userId, { type: 'bookmark:saved', bookmark: updated })
     return NextResponse.json(updated)
   } catch (err: unknown) {
     const e = err as { code?: string }
@@ -89,5 +91,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (existing.userId !== auth.userId) return forbidden()
 
   await prisma.bookmark.delete({ where: { id } })
+  broadcastToUser(auth.userId, { type: 'bookmark:deleted', id })
   return new NextResponse(null, { status: 204 })
 }

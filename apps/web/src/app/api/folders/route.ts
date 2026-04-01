@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
+import { broadcastToUser } from '@/lib/sse'
 
 const CreateSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -63,5 +64,6 @@ export async function POST(request: NextRequest) {
     include: { _count: { select: { bookmarks: true } } },
   })
 
+  broadcastToUser(auth.userId, { type: 'folders:changed' })
   return NextResponse.json(folder, { status: 201 })
 }

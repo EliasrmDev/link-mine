@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
+import { broadcastToUser } from '@/lib/sse'
 
 const CreateSchema = z.object({
   url: z.string().url('Invalid URL'),
@@ -113,6 +114,9 @@ export async function POST(request: NextRequest) {
       } as any,
       include: { folder: { select: { id: true, name: true } } },
     })
+    // Notify any open dashboard tabs for this user
+    broadcastToUser(auth.userId, { type: 'bookmark:saved', bookmark })
+
     return NextResponse.json(bookmark, { status: 201 })
   } catch (err: unknown) {
     const e = err as { code?: string }

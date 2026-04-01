@@ -365,3 +365,55 @@ body {
   width: 14px;
   text-align: center;
 }
+
+/* ── Search ── */
+.search-row { margin-bottom: 6px; }
+
+.search-input {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+  font-size: 12px;
+}
+.search-input::placeholder { color: var(--color-text-muted); }
+.search-input:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
+/* ── Inline delete confirm ── */
+.recent-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.recent-delete-confirm span {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.confirm-yes, .confirm-no {
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.confirm-yes {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+.confirm-yes:hover { opacity: 0.8; }
+
+.confirm-no {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+.confirm-no:hover { background: var(--color-border); }
