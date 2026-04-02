@@ -13,6 +13,21 @@ const UpdateSchema = z.object({
   folderId: z.string().cuid().nullable().optional(),
 })
 
+function normalizeTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+
+  for (const raw of tags) {
+    const value = raw.trim().toLowerCase()
+    if (!value) continue
+    if (seen.has(value)) continue
+    seen.add(value)
+    normalized.push(value)
+  }
+
+  return normalized
+}
+
 // GET /api/bookmarks/:id
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(request)
@@ -47,6 +62,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) return badRequest(parsed.error.issues[0].message)
 
   const { folderId, reminderDate, ...rest } = parsed.data
+  const normalizedRest = {
+    ...rest,
+    ...(rest.tags ? { tags: normalizeTags(rest.tags) } : {}),
+  }
 
   // Verify folder ownership if changing folder
   if (folderId !== undefined && folderId !== null) {
@@ -61,7 +80,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       where: { id },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
-        ...rest,
+        ...normalizedRest,
         ...(folderId !== undefined ? { folderId } : {}),
         ...(reminderDate !== undefined
           ? { reminderDate: reminderDate ? new Date(reminderDate) : null }

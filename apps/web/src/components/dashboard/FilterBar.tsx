@@ -2,16 +2,16 @@
 
 import { useState } from 'react'
 import type { BookmarkFilters } from '@savepath/shared'
-import { PRESET_ICONS } from '@savepath/shared'
 
 interface Props {
   filters: BookmarkFilters
   allTags: string[]
+  iconsInUse: string[]
   onChange: (f: BookmarkFilters) => void
   onReset: () => void
 }
 
-export function FilterBar({ filters, allTags, onChange, onReset }: Props) {
+export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: Props) {
   const [open, setOpen] = useState(false)
 
   const activeCount = [
@@ -145,7 +145,7 @@ export function FilterBar({ filters, allTags, onChange, onReset }: Props) {
             <div>
               <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">Icon</p>
               <div className="flex flex-wrap gap-1">
-                {PRESET_ICONS.map((icon) => {
+                {iconsInUse.map((icon) => {
                   const active = filters.icon === icon
                   return (
                     <button
@@ -164,6 +164,9 @@ export function FilterBar({ filters, allTags, onChange, onReset }: Props) {
                     </button>
                   )
                 })}
+                {iconsInUse.length === 0 && (
+                  <span className="text-xs text-gray-400">No icons in use</span>
+                )}
                 {/* Clear icon filter */}
                 {filters.icon && (
                   <button

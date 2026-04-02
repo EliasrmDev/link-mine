@@ -57,9 +57,51 @@
         <div class="page-info">
           <img id="page-favicon" src="" alt="" width="16" height="16" class="favicon" />
           <div class="page-text">
-            <p id="page-title" class="page-title" title=""></p>
             <p id="page-url" class="page-url" title=""></p>
           </div>
+        </div>
+
+        <div class="field">
+          <label for="page-title-input" class="label">Path name</label>
+          <input id="page-title-input" class="text-input" type="text" maxlength="500" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label class="label">Icon</label>
+          <div class="icon-picker" id="page-icon-picker">
+            <div class="icon-preview" id="page-icon-preview" aria-live="polite">
+              <img id="page-icon-favicon" src="" alt="" width="16" height="16" class="favicon" />
+              <span id="page-icon-value" class="icon-value" hidden></span>
+            </div>
+            <button id="btn-edit-icon" type="button" class="icon-btn" aria-label="Edit icon" title="Edit icon">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          </div>
+          <div id="page-icon-editor" class="icon-editor" hidden>
+            <div id="page-icon-presets" class="icon-presets" role="listbox" aria-label="Preset icons"></div>
+            <div class="icon-editor-row">
+              <input id="page-icon-input" class="text-input icon-input" type="text" maxlength="10" placeholder="custom" autocomplete="off" aria-label="Custom icon" />
+              <button id="btn-clear-icon" type="button" class="btn-mini">Use site icon</button>
+              <button id="btn-close-icon" type="button" class="btn-mini">Done</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Folder selector -->
+        <div class="field">
+          <label class="label">Tags</label>
+          <div id="page-tag-presets" class="tag-presets" role="listbox" aria-label="Preset tags"></div>
+          <input
+            id="page-tags-input"
+            class="text-input"
+            type="text"
+            maxlength="250"
+            placeholder="work, tools, reading"
+            autocomplete="off"
+            aria-label="Bookmark tags"
+          />
         </div>
 
         <!-- Folder selector -->

@@ -14,13 +14,18 @@ import {
 import {
   apiCheckAuth,
   apiFetchBookmarks,
+  apiFetchTags,
   apiFetchFolders,
   apiSaveBookmark,
   apiDeleteBookmark,
+  apiUpdateBookmark,
   apiUpdateAccess,
   apiRevokeToken,
   BASE_URL,
 } from '../shared/api.js'
+
+const PRESET_ICONS = ['🔖', '📌', '⭐', '🔥', '📚', '💡', '🎯', '🛠️', '📝', '🔗', '🎨', '🔬']
+const PRESET_TAGS = ['work', 'study', 'tools', 'design', 'frontend', 'backend', 'ai', 'reading', 'docs', 'inspiration']
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,9 +46,21 @@ const btnSave      = $('btn-save')
 const btnTheme     = $('btn-theme')
 const btnLogout    = $('btn-logout')
 
-const pageTitle    = $('page-title')
+const pageTitleInput = $('page-title-input')
+const pageIconInput  = $('page-icon-input')
 const pageUrl      = $('page-url')
 const pageFavicon  = $('page-favicon')
+const pageIconPicker = $('page-icon-picker')
+const pageIconPreview = $('page-icon-preview')
+const pageIconFavicon = $('page-icon-favicon')
+const pageIconValue = $('page-icon-value')
+const pageIconEditor = $('page-icon-editor')
+const pageIconPresets = $('page-icon-presets')
+const btnEditIcon = $('btn-edit-icon')
+const btnClearIcon = $('btn-clear-icon')
+const btnCloseIcon = $('btn-close-icon')
+const pageTagsInput = $('page-tags-input')
+const pageTagPresets = $('page-tag-presets')
 const folderSelect = $('folder-select')
 const saveStatus   = $('save-status')
 const recentList   = $('recent-list')
@@ -54,12 +71,19 @@ const reminderText   = $('reminder-text')
 const reminderLink   = $('reminder-link')
 const recentSearch   = $('recent-search')
 
+const SAVE_BUTTON_DEFAULT_TEXT = 'Save this page'
+const SAVE_BUTTON_DUPLICATE_TEXT = 'Already saved'
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let currentTab    = null
 let refreshToken  = null
 let allBookmarks  = []
 let searchTimeout = null
+let syncedTags = []
+
+renderIconPresetButtons()
+renderTagPresetButtons()
 
 // ─── Initialise ───────────────────────────────────────────────────────────────
 
@@ -95,8 +119,10 @@ async function init() {
   // Auth OK — show logout button and populate the UI in parallel
   btnLogout.hidden = false
   showView('main')
+  await refreshTagPresetsFromServer()
+  renderTagPresetButtons()
   populateCurrentTab()
-  await Promise.all([loadFolders(), loadRecent(), showReminderBanner()])
+  await Promise.all([loadFolders(), loadRecent(), showReminderBanner(), refreshSaveButtonState()])
 }
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
@@ -146,14 +172,171 @@ function populateCurrentTab() {
   const url    = currentTab.url   ?? ''
   const domain = (() => { try { return new URL(url).hostname } catch { return '' } })()
 
-  pageTitle.textContent = title
-  pageTitle.title = title
+  pageTitleInput.value = title
   pageUrl.textContent   = domain
   pageUrl.title = url
+  pageIconInput.value = ''
+  pageTagsInput.value = ''
+  pageIconEditor.hidden = true
 
   if (domain) {
     pageFavicon.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
     pageFavicon.alt = ''
+    pageIconFavicon.src = pageFavicon.src
+    pageIconFavicon.alt = ''
+  }
+
+  updateCurrentIconPreview()
+  syncTagPresetState()
+}
+
+function renderIconPresetButtons() {
+  if (!pageIconPresets) return
+
+  pageIconPresets.innerHTML = PRESET_ICONS.map((icon) => (
+    `<button type="button" class="icon-preset" data-icon="${icon}" aria-label="Choose icon ${icon}">${icon}</button>`
+  )).join('')
+
+  pageIconPresets.querySelectorAll('.icon-preset').forEach((button) => {
+    button.addEventListener('click', () => {
+      pageIconInput.value = button.dataset.icon ?? ''
+      updateCurrentIconPreview()
+    })
+  })
+}
+
+function updateCurrentIconPreview() {
+  const custom = pageIconInput.value.trim()
+
+  if (custom) {
+    pageIconValue.hidden = false
+    pageIconFavicon.hidden = true
+    pageIconValue.textContent = custom
+  } else {
+    pageIconValue.hidden = true
+    pageIconFavicon.hidden = false
+    pageIconValue.textContent = ''
+  }
+
+  if (pageIconPresets) {
+    pageIconPresets.querySelectorAll('.icon-preset').forEach((button) => {
+      const active = (button.dataset.icon ?? '') === custom
+      button.classList.toggle('active', active)
+      button.setAttribute('aria-pressed', active ? 'true' : 'false')
+    })
+  }
+}
+
+function parseTagsInput(raw) {
+  const seen = new Set()
+  const unique = []
+
+  String(raw ?? '')
+    .split(',')
+    .map((tag) => tag.trim())
+    .forEach((tag) => {
+      const normalized = tag.toLowerCase()
+      if (!normalized) return
+      if (seen.has(normalized)) return
+      seen.add(normalized)
+      unique.push(normalized)
+    })
+
+  return unique
+}
+
+function setTagsInput(tags) {
+  pageTagsInput.value = tags.join(', ')
+  syncTagPresetState()
+}
+
+function getSelectedTags() {
+  return parseTagsInput(pageTagsInput.value)
+}
+
+function renderTagPresetButtons() {
+  if (!pageTagPresets) return
+
+  const allPresetTags = parseTagsInput([...PRESET_TAGS, ...syncedTags].join(','))
+
+  pageTagPresets.innerHTML = allPresetTags.map((tag) => (
+    `<button type="button" class="tag-preset" data-tag="${tag}" aria-label="Toggle tag ${tag}">${tag}</button>`
+  )).join('')
+
+  pageTagPresets.querySelectorAll('.tag-preset').forEach((button) => {
+    button.addEventListener('click', () => {
+      const tag = button.dataset.tag ?? ''
+      const selected = getSelectedTags()
+      const next = selected.includes(tag)
+        ? selected.filter((t) => t !== tag)
+        : [...selected, tag]
+      setTagsInput(next)
+    })
+  })
+}
+
+async function refreshTagPresetsFromServer() {
+  const result = await apiFetchTags(refreshToken)
+  if (result.authError) {
+    await handleAuthError()
+    return
+  }
+  if (!result.ok) return
+
+  syncedTags = parseTagsInput(result.tags.join(','))
+  renderTagPresetButtons()
+  syncTagPresetState()
+}
+
+function syncTagPresetState() {
+  if (!pageTagPresets) return
+
+  const selected = getSelectedTags()
+  pageTagPresets.querySelectorAll('.tag-preset').forEach((button) => {
+    const active = selected.includes(button.dataset.tag ?? '')
+    button.classList.toggle('active', active)
+    button.setAttribute('aria-pressed', active ? 'true' : 'false')
+  })
+}
+
+function normalizeUrlForCompare(rawUrl) {
+  try {
+    const u = new URL(rawUrl)
+    u.hash = ''
+    return u.toString()
+  } catch {
+    return String(rawUrl ?? '')
+  }
+}
+
+function isSameSavedUrl(a, b) {
+  return normalizeUrlForCompare(a) === normalizeUrlForCompare(b)
+}
+
+function setSaveButtonState({ disabled, text }) {
+  btnSave.disabled = disabled
+  btnSave.innerHTML = `
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+    </svg>
+    ${text}
+  `
+}
+
+async function refreshSaveButtonState() {
+  if (!currentTab?.url) {
+    setSaveButtonState({ disabled: true, text: SAVE_BUTTON_DEFAULT_TEXT })
+    return
+  }
+
+  const result = await apiFetchBookmarks(refreshToken, { q: currentTab.url })
+  if (!result.ok || result.authError) return
+
+  const exists = (result.bookmarks ?? []).some((bm) => isSameSavedUrl(bm.url, currentTab.url))
+  if (exists) {
+    setSaveButtonState({ disabled: true, text: SAVE_BUTTON_DUPLICATE_TEXT })
+  } else {
+    setSaveButtonState({ disabled: false, text: SAVE_BUTTON_DEFAULT_TEXT })
   }
 }
 
@@ -226,17 +409,31 @@ function renderRecent(bookmarks) {
         <span class="recent-domain">${escapeHtml(domain)}</span>
       </a>
       ${isReminderDue ? '<span class="recent-reminder-badge" title="Reminder due" aria-label="Reminder due">⏰</span>' : ''}
-      <button class="recent-delete" data-id="${escapeAttr(bm.id)}"
-              aria-label="Delete ${escapeAttr(bm.title)}">
-        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-      </button>
+      <div class="recent-actions">
+        <button class="recent-edit" data-id="${escapeAttr(bm.id)}"
+                aria-label="Edit ${escapeAttr(bm.title)}">
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+        </button>
+        <button class="recent-delete" data-id="${escapeAttr(bm.id)}"
+                aria-label="Delete ${escapeAttr(bm.title)}">
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
     `
 
     // Track lastAccessed on link click (fire-and-forget)
     li.querySelector('a').addEventListener('click', () => {
       apiUpdateAccess(bm.id, refreshToken)
+    })
+
+    li.querySelector('.recent-edit').addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      showEditForm(li, bm)
     })
 
     // Delete: show inline confirm first
@@ -251,8 +448,11 @@ function renderRecent(bookmarks) {
 }
 
 function showDeleteConfirm(li, id) {
+  const actions = li.querySelector('.recent-actions')
+  if (actions) actions.hidden = true
+
   const deleteBtn = li.querySelector('.recent-delete')
-  deleteBtn.hidden = true
+  if (deleteBtn) deleteBtn.hidden = true
 
   const confirm = document.createElement('div')
   confirm.className = 'recent-delete-confirm'
@@ -266,15 +466,109 @@ function showDeleteConfirm(li, id) {
     e.stopPropagation()
     await apiDeleteBookmark(id, refreshToken)
     li.remove()
+    await refreshSaveButtonState()
   })
 
   confirm.querySelector('.confirm-no').addEventListener('click', (e) => {
     e.stopPropagation()
     confirm.remove()
-    deleteBtn.hidden = false
+    if (actions) actions.hidden = false
   })
 
   li.appendChild(confirm)
+}
+
+function showEditForm(li, bm) {
+  if (li.querySelector('.recent-edit-form')) return
+
+  li.classList.add('recent-item--editing')
+
+  const actions = li.querySelector('.recent-actions')
+  if (actions) actions.hidden = true
+
+  const form = document.createElement('div')
+  form.className = 'recent-edit-form'
+  form.innerHTML = `
+    <input class="edit-title-input" type="text" maxlength="500" aria-label="Edit bookmark title" />
+    <input class="edit-icon-input" type="text" maxlength="10" placeholder="icon" aria-label="Edit bookmark icon" />
+    <div class="recent-edit-buttons">
+      <button class="edit-save" aria-label="Save changes">Save</button>
+      <button class="edit-cancel" aria-label="Cancel edit">Cancel</button>
+    </div>
+  `
+
+  const titleInput = form.querySelector('.edit-title-input')
+  const iconInput = form.querySelector('.edit-icon-input')
+  titleInput.value = bm.title ?? ''
+  iconInput.value = bm.icon ?? ''
+
+  const closeForm = () => {
+    form.remove()
+    li.classList.remove('recent-item--editing')
+    if (actions) actions.hidden = false
+  }
+
+  form.querySelector('.edit-cancel').addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    closeForm()
+  })
+
+  const saveEdit = async () => {
+    const nextTitle = titleInput.value.trim()
+    const nextIcon = iconInput.value.trim()
+
+    if (!nextTitle) {
+      showStatus('Title is required.', 'error')
+      titleInput.focus()
+      return
+    }
+
+    const result = await apiUpdateBookmark(
+      bm.id,
+      { title: nextTitle, icon: nextIcon || null },
+      refreshToken,
+    )
+
+    if (result.authError) {
+      await handleAuthError()
+      return
+    }
+
+    if (!result.ok) {
+      showStatus(result.error ?? 'Failed to update.', 'error')
+      return
+    }
+
+    showStatus('Bookmark updated.', 'success')
+    closeForm()
+    await loadRecent(recentSearch.value.trim())
+    await refreshSaveButtonState()
+  }
+
+  form.querySelector('.edit-save').addEventListener('click', async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    await saveEdit()
+  })
+
+  form.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      await saveEdit()
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      closeForm()
+    }
+  })
+
+  li.appendChild(form)
+  titleInput.focus()
+  titleInput.select()
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -292,10 +586,15 @@ btnSave.addEventListener('click', async () => {
   if (!currentTab?.url) return
   btnSave.disabled = true
 
+  const title = pageTitleInput.value.trim() || currentTab.title || currentTab.url
+  const icon = pageIconInput.value.trim()
+  const tags = getSelectedTags()
+
   const bookmark = {
     url: currentTab.url,
-    title: currentTab.title ?? currentTab.url,
-    tags: [],
+    title,
+    icon: icon || null,
+    tags,
     folderId: folderSelect.value || null,
   }
 
@@ -308,18 +607,43 @@ btnSave.addEventListener('click', async () => {
 
   if (result.ok) {
     showStatus('Saved!', 'success')
-    btnSave.textContent = '✓ Saved'
+    setSaveButtonState({ disabled: true, text: '✓ Saved' })
+    await refreshTagPresetsFromServer()
     await loadRecent()
   } else if (result.status === 409) {
     showStatus('Already saved.', 'success')
-    btnSave.disabled = false
+    setSaveButtonState({ disabled: true, text: SAVE_BUTTON_DUPLICATE_TEXT })
   } else if (result.status === 0) {
     await addPending(bookmark)
     showStatus('Saved offline — will sync when online.', 'success')
+    setSaveButtonState({ disabled: true, text: 'Saved offline' })
   } else {
     showStatus(result.error ?? 'Failed to save. Try again.', 'error')
-    btnSave.disabled = false
+    setSaveButtonState({ disabled: false, text: SAVE_BUTTON_DEFAULT_TEXT })
   }
+})
+
+btnEditIcon.addEventListener('click', () => {
+  pageIconEditor.hidden = !pageIconEditor.hidden
+  if (!pageIconEditor.hidden) pageIconInput.focus()
+})
+
+btnClearIcon.addEventListener('click', () => {
+  pageIconInput.value = ''
+  updateCurrentIconPreview()
+})
+
+btnCloseIcon.addEventListener('click', () => {
+  pageIconEditor.hidden = true
+})
+
+pageIconInput.addEventListener('input', () => {
+  pageIconInput.value = pageIconInput.value.slice(0, 10)
+  updateCurrentIconPreview()
+})
+
+pageTagsInput.addEventListener('input', () => {
+  syncTagPresetState()
 })
 
 function showStatus(message, type) {

@@ -25,6 +25,21 @@ const QuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
 })
 
+function normalizeTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+
+  for (const raw of tags) {
+    const value = raw.trim().toLowerCase()
+    if (!value) continue
+    if (seen.has(value)) continue
+    seen.add(value)
+    normalized.push(value)
+  }
+
+  return normalized
+}
+
 // GET /api/bookmarks
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request)
@@ -91,6 +106,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return badRequest(parsed.error.issues[0].message)
 
   const { url, title, tags, icon, reminderDate, folderId } = parsed.data
+  const normalizedTags = normalizeTags(tags)
 
   // Verify folder ownership if provided
   if (folderId) {
@@ -106,7 +122,7 @@ export async function POST(request: NextRequest) {
       data: {
         url,
         title,
-        tags,
+        tags: normalizedTags,
         icon: icon ?? null,
         reminderDate: reminderDate ? new Date(reminderDate) : null,
         folderId: folderId ?? null,

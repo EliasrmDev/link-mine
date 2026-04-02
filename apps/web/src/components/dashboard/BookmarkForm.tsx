@@ -3,34 +3,86 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Bookmark, Folder } from '@savepath/shared'
 import { PRESET_ICONS } from '@savepath/shared'
+import { PRESET_TAGS } from '@savepath/shared'
 import { Modal } from '../ui/Modal'
+
+function normalizeTagsCaseInsensitive(tags: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const raw of tags) {
+    const normalized = raw.trim().toLowerCase()
+    if (!normalized) continue
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    result.push(normalized)
+  }
+
+  return result
+}
+
 
 interface Props {
   bookmark?: Bookmark
   folders: Folder[]
   defaultFolderId: string | null
+  initialDraft?: {
+    url: string
+    title: string
+    tags: string[]
+    icon: string
+    reminderDate: string
+    folderId: string
+  }
+  onOpenCreateFolder?: (draft: {
+    url: string
+    title: string
+    tags: string[]
+    icon: string
+    reminderDate: string
+    folderId: string
+  }) => void
   onSave: () => void
   onClose: () => void
 }
 
-export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClose }: Props) {
+export function BookmarkForm({
+  bookmark,
+  folders,
+  defaultFolderId,
+  initialDraft,
+  onOpenCreateFolder,
+  onSave,
+  onClose,
+}: Props) {
   const isEditing = !!bookmark
-  const [url, setUrl] = useState(bookmark?.url ?? '')
-  const [title, setTitle] = useState(bookmark?.title ?? '')
-  const [tagInput, setTagInput] = useState(bookmark?.tags.join(', ') ?? '')
-  const [icon, setIcon] = useState(bookmark?.icon ?? '')
+  const [url, setUrl] = useState(bookmark?.url ?? initialDraft?.url ?? '')
+  const [title, setTitle] = useState(bookmark?.title ?? initialDraft?.title ?? '')
+  const [tagInput, setTagInput] = useState(bookmark?.tags.join(', ') ?? initialDraft?.tags.join(', ') ?? '')
+  const [icon, setIcon] = useState(bookmark?.icon ?? initialDraft?.icon ?? '')
   const [reminderDate, setReminderDate] = useState(
-    bookmark?.reminderDate ? bookmark.reminderDate.slice(0, 10) : '',
+    bookmark?.reminderDate ? bookmark.reminderDate.slice(0, 10) : (initialDraft?.reminderDate ?? ''),
   )
   const [folderId, setFolderId] = useState<string>(
-    bookmark?.folderId ?? defaultFolderId ?? '',
+    bookmark?.folderId ?? initialDraft?.folderId ?? defaultFolderId ?? '',
   )
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [syncedTags, setSyncedTags] = useState<string[]>([])
   const firstInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     firstInputRef.current?.focus()
+
+    const loadTags = async () => {
+      const res = await fetch('/api/tags')
+      if (!res.ok) return
+      const data = await res.json().catch(() => ({ tags: [] }))
+      const tags = Array.isArray(data.tags) ? data.tags.map((t: unknown) => String(t)) : []
+      setSyncedTags(normalizeTagsCaseInsensitive(tags))
+    }
+
+    void loadTags()
   }, [])
 
   // Flatten folder tree for select
@@ -48,12 +100,14 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
       .map((t) => t.trim())
       .filter(Boolean)
 
+    const normalizedTags = normalizeTagsCaseInsensitive(tags)
+
     setSaving(true)
     try {
       const body = {
         url,
         title,
-        tags,
+        tags: normalizedTags,
         icon: icon || null,
         reminderDate: reminderDate ? new Date(reminderDate).toISOString() : null,
         folderId: folderId || null,
@@ -74,10 +128,28 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
         return
       }
 
+      setSyncedTags((prev) => normalizeTagsCaseInsensitive([...prev, ...normalizedTags]))
+
       onSave()
     } finally {
       setSaving(false)
     }
+  }
+
+  const selectedTags = normalizeTagsCaseInsensitive(
+    tagInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
+  )
+
+  const allPresetTags = normalizeTagsCaseInsensitive([...PRESET_TAGS, ...syncedTags])
+
+  function togglePresetTag(tag: string) {
+    const next = selectedTags.includes(tag)
+      ? selectedTags.filter((t) => t !== tag)
+      : [...selectedTags, tag]
+    setTagInput(next.join(', '))
   }
 
   return (
@@ -164,6 +236,26 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
             <label htmlFor="bm-tags" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Tags
             </label>
+            <div className="mb-2 flex flex-wrap gap-1">
+              {allPresetTags.map((tag) => {
+                const active = selectedTags.includes(tag)
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => togglePresetTag(tag)}
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+                      active
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                    aria-pressed={active}
+                  >
+                    {tag}
+                  </button>
+                )
+              })}
+            </div>
             <input
               id="bm-tags"
               type="text"
@@ -202,19 +294,37 @@ export function BookmarkForm({ bookmark, folders, defaultFolderId, onSave, onClo
             <label htmlFor="bm-folder" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Folder
             </label>
-            <select
-              id="bm-folder"
-              value={folderId}
-              onChange={(e) => setFolderId(e.target.value)}
-              className="input"
-            >
-              <option value="">No folder</option>
-              {folderOptions.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.depth === 1 ? '  └ ' : ''}{f.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                id="bm-folder"
+                value={folderId}
+                onChange={(e) => setFolderId(e.target.value)}
+                className="input"
+              >
+                <option value="">No folder</option>
+                {folderOptions.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.depth === 1 ? '  └ ' : ''}{f.name}
+                  </option>
+                ))}
+              </select>
+              {!isEditing && onOpenCreateFolder && (
+                <button
+                  type="button"
+                  className="btn-secondary whitespace-nowrap"
+                  onClick={() => onOpenCreateFolder({
+                    url,
+                    title,
+                    tags: selectedTags,
+                    icon,
+                    reminderDate,
+                    folderId,
+                  })}
+                >
+                  New folder
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

@@ -8,7 +8,7 @@ interface Props {
   folder?: Folder
   parentId?: string | null
   folders: Folder[]
-  onSave: () => void
+  onSave: (savedFolder?: Folder) => void
   onClose: () => void
 }
 
@@ -53,7 +53,8 @@ export function FolderForm({ folder, parentId, folders, onSave, onClose }: Props
         return
       }
 
-      onSave()
+      const data = await res.json().catch(() => null)
+      onSave(data ?? undefined)
     } finally {
       setSaving(false)
     }

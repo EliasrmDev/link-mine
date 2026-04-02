@@ -19,6 +19,8 @@ const DEFAULT_FILTERS: BookmarkFilters = {
   hasReminder: false,
 }
 
+const SSE_REFRESH_DEBOUNCE_MS = 200
+
 function loadFilters(): BookmarkFilters {
   if (typeof window === 'undefined') return DEFAULT_FILTERS
   try {
@@ -71,6 +73,14 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   const [bookmarkForm, setBookmarkForm] = useState<{
     open: boolean
     bookmark?: Bookmark
+    draft?: {
+      url: string
+      title: string
+      tags: string[]
+      icon: string
+      reminderDate: string
+      folderId: string
+    }
   }>({ open: false })
   const [folderForm, setFolderForm] = useState<{
     open: boolean
@@ -82,51 +92,29 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     bookmarkId?: string
     bookmarkTitle?: string
   }>({ open: false })
+  const [returnToBookmarkAfterFolder, setReturnToBookmarkAfterFolder] = useState(false)
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
+  const sseRefreshTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
   // Load persisted filters on mount
   useEffect(() => {
     setFilters(loadFilters())
   }, [])
 
-  // SSE subscription for real-time sync
-  useEffect(() => {
-    const es = new EventSource('/api/sync/stream')
-
-    es.addEventListener('bookmark:saved', (e) => {
-      const bookmark: Bookmark = JSON.parse((e as MessageEvent).data)
-      setBookmarks((prev) => {
-        const idx = prev.findIndex((b) => b.id === bookmark.id)
-        if (idx !== -1) {
-          const next = [...prev]
-          next[idx] = bookmark
-          return next
-        }
-        return [bookmark, ...prev]
-      })
-      setTotal((t) => t)
-    })
-
-    es.addEventListener('bookmark:deleted', (e) => {
-      const { id } = JSON.parse((e as MessageEvent).data)
-      setBookmarks((prev) => prev.filter((b) => b.id !== id))
-      setTotal((t) => Math.max(t - 1, 0))
-    })
-
-    es.addEventListener('folders:changed', () => {
-      fetchFolders()
-    })
-
-    return () => es.close()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // Collect all unique tags from current bookmarks for FilterBar suggestions
   const allTags = useMemo(() => {
     const set = new Set<string>()
-    bookmarks.forEach((b) => b.tags.forEach((t) => set.add(t)))
+    bookmarks.forEach((b) => b.tags.forEach((t) => set.add(t.trim().toLowerCase())))
     return Array.from(set).sort()
+  }, [bookmarks])
+
+  const iconsInUse = useMemo(() => {
+    const set = new Set<string>()
+    bookmarks.forEach((b) => {
+      if (b.icon) set.add(b.icon)
+    })
+    return Array.from(set)
   }, [bookmarks])
 
   const fetchBookmarks = useCallback(
@@ -179,6 +167,41 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     }
   }, [])
 
+  const refreshFromServer = useCallback(async () => {
+    await Promise.all([
+      fetchBookmarks({ folderId: selectedFolderId, q: query }),
+      fetchFolders(),
+    ])
+  }, [fetchBookmarks, fetchFolders, selectedFolderId, query])
+
+  // SSE subscription for real-time sync
+  useEffect(() => {
+    const es = new EventSource('/api/sync/stream')
+
+    const scheduleRefresh = () => {
+      if (sseRefreshTimeout.current) clearTimeout(sseRefreshTimeout.current)
+      sseRefreshTimeout.current = setTimeout(() => {
+        void refreshFromServer()
+      }, SSE_REFRESH_DEBOUNCE_MS)
+    }
+
+    const onBookmarkSaved = () => { scheduleRefresh() }
+    const onBookmarkDeleted = () => { scheduleRefresh() }
+    const onFoldersChanged = () => { scheduleRefresh() }
+
+    es.addEventListener('bookmark:saved', onBookmarkSaved)
+    es.addEventListener('bookmark:deleted', onBookmarkDeleted)
+    es.addEventListener('folders:changed', onFoldersChanged)
+
+    return () => {
+      if (sseRefreshTimeout.current) clearTimeout(sseRefreshTimeout.current)
+      es.removeEventListener('bookmark:saved', onBookmarkSaved)
+      es.removeEventListener('bookmark:deleted', onBookmarkDeleted)
+      es.removeEventListener('folders:changed', onFoldersChanged)
+      es.close()
+    }
+  }, [refreshFromServer])
+
   const handleSearch = (q: string) => {
     setQuery(q)
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -208,9 +231,36 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     await fetchFolders()
   }
 
-  const handleFolderSaved = async () => {
+  const handleFolderSaved = async (savedFolder?: Folder) => {
     setFolderForm({ open: false })
     await fetchFolders()
+
+    if (returnToBookmarkAfterFolder) {
+      setBookmarkForm((prev) => {
+        if (!prev.draft) return { open: true }
+        return {
+          open: true,
+          draft: {
+            ...prev.draft,
+            folderId: savedFolder?.id ?? prev.draft.folderId,
+          },
+        }
+      })
+      setReturnToBookmarkAfterFolder(false)
+    }
+  }
+
+  const handleOpenCreateFolderFromBookmark = (draft: {
+    url: string
+    title: string
+    tags: string[]
+    icon: string
+    reminderDate: string
+    folderId: string
+  }) => {
+    setBookmarkForm({ open: false, draft })
+    setReturnToBookmarkAfterFolder(true)
+    setFolderForm({ open: true, parentId: null })
   }
 
   const handleDeleteBookmark = (id: string) => {
@@ -267,6 +317,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
         <FilterBar
           filters={filters}
           allTags={allTags}
+          iconsInUse={iconsInUse}
           onChange={handleFiltersChange}
           onReset={handleFiltersReset}
         />
@@ -288,8 +339,10 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
       {bookmarkForm.open && (
         <BookmarkForm
           bookmark={bookmarkForm.bookmark}
+          initialDraft={bookmarkForm.draft}
           folders={folders}
           defaultFolderId={selectedFolderId !== 'all' ? (selectedFolderId ?? null) : null}
+          onOpenCreateFolder={handleOpenCreateFolderFromBookmark}
           onSave={handleBookmarkSaved}
           onClose={() => setBookmarkForm({ open: false })}
         />
@@ -301,7 +354,13 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           parentId={folderForm.parentId}
           folders={folders}
           onSave={handleFolderSaved}
-          onClose={() => setFolderForm({ open: false })}
+          onClose={() => {
+            setFolderForm({ open: false })
+            if (returnToBookmarkAfterFolder) {
+              setBookmarkForm((prev) => ({ open: true, draft: prev.draft }))
+              setReturnToBookmarkAfterFolder(false)
+            }
+          }}
         />
       )}
 

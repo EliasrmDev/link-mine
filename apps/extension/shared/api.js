@@ -129,6 +129,25 @@ export async function apiFetchBookmarks(refreshToken, {
 }
 
 /**
+ * Fetch canonical user tags (lowercase, unique).
+ */
+export async function apiFetchTags(refreshToken) {
+  const accessToken = await ensureAccessToken(refreshToken)
+  if (!accessToken) return { ok: false, tags: [], authError: true }
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/tags`, {
+      headers: jsonHeaders(accessToken),
+    })
+    if (!res.ok) return { ok: false, tags: [] }
+    const data = await res.json()
+    return { ok: true, tags: Array.isArray(data.tags) ? data.tags : [] }
+  } catch {
+    return { ok: false, tags: [] }
+  }
+}
+
+/**
  * Fetch bookmarks with due reminders.
  */
 export async function apiFetchDueReminders(refreshToken) {
@@ -209,6 +228,27 @@ export async function apiDeleteBookmark(id, refreshToken) {
     return { ok: res.ok || res.status === 204 }
   } catch {
     return { ok: false }
+  }
+}
+
+/**
+ * Update a bookmark.
+ */
+export async function apiUpdateBookmark(id, patch, refreshToken) {
+  const accessToken = await ensureAccessToken(refreshToken)
+  if (!accessToken) return { ok: false, status: 401, authError: true }
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/bookmarks/${id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders(accessToken),
+      body: JSON.stringify(patch),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) return { ok: false, error: data.error, status: res.status }
+    return { ok: true, bookmark: data }
+  } catch {
+    return { ok: false, error: 'Network error', status: 0 }
   }
 }
 

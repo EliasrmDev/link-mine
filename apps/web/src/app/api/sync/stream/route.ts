@@ -38,7 +38,17 @@ export async function GET(request: NextRequest) {
 
       // Push sync events to this client
       const unsubscribe = subscribeUser(auth.userId, (event) => {
-        send(`data: ${JSON.stringify(event)}\n\n`)
+        if (event.type === 'bookmark:saved') {
+          send(`event: bookmark:saved\ndata: ${JSON.stringify(event.bookmark)}\n\n`)
+          return
+        }
+
+        if (event.type === 'bookmark:deleted') {
+          send(`event: bookmark:deleted\ndata: ${JSON.stringify({ id: event.id })}\n\n`)
+          return
+        }
+
+        send('event: folders:changed\ndata: {}\n\n')
       })
 
       // Keep-alive heartbeat (SSE comments are ignored by EventSource)
