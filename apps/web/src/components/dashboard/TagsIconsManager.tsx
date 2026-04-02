@@ -16,6 +16,8 @@ interface IconData {
 interface Props {
   allTags: string[]
   iconsInUse: string[]
+  initialTags: Tag[]  // Server-side initial data
+  initialIcons: IconData[]  // Server-side initial data
   onTagRenamed: (oldName: string, newName: string) => Promise<void>
   onTagDeleted: (tagName: string) => Promise<void>
   onIconUpdated: (oldIcon: string, newIcon: string) => Promise<void>
@@ -23,9 +25,20 @@ interface Props {
   onIconCreated: (icon: string) => Promise<void>
 }
 
-export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDeleted, onIconUpdated, onTagCreated, onIconCreated }: Props) {
-  const [tags, setTags] = useState<Tag[]>([])
-  const [icons, setIcons] = useState<IconData[]>([])
+export function TagsIconsManager({
+  allTags,
+  iconsInUse,
+  initialTags,
+  initialIcons,
+  onTagRenamed,
+  onTagDeleted,
+  onIconUpdated,
+  onTagCreated,
+  onIconCreated
+}: Props) {
+  // Initialize with server-side data
+  const [tags, setTags] = useState<Tag[]>(initialTags)
+  const [icons, setIcons] = useState<IconData[]>(initialIcons)
   const [activeTab, setActiveTab] = useState<'tags' | 'icons'>('tags')
   const [editingTag, setEditingTag] = useState<{ old: string; new: string } | null>(null)
   const [editingIcon, setEditingIcon] = useState<{ old: string; new: string } | null>(null)
@@ -35,14 +48,15 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
   const [showCreateModal, setShowCreateModal] = useState<{ type: 'tag' | 'icon' } | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Update state when props change
   useEffect(() => {
-    fetchPresetsAndCounts()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTags, iconsInUse])
+    setTags(initialTags)
+    setIcons(initialIcons)
+  }, [initialTags, initialIcons])
 
-  const fetchPresetsAndCounts = async () => {
+  // Client-side refresh after operations
+  const refreshData = async () => {
     try {
-      // Single parallel fetch — no duplicate /api/presets calls
       const [presetsRes, countsRes] = await Promise.all([
         fetch('/api/presets'),
         fetch('/api/tags?counts=true'),
@@ -51,7 +65,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
       const presets = presetsRes.ok ? await presetsRes.json() : { tags: [], icons: [] }
       const usageCounts: { name: string; count: number }[] = countsRes.ok ? await countsRes.json() : []
 
-      // Tags
+      // Update tags
       const countMap = new Map<string, number>(usageCounts.map((t) => [t.name, t.count]))
       const tagList: Tag[] = (presets.tags as string[]).map((name) => ({
         name,
@@ -60,7 +74,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
       tagList.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
       setTags(tagList)
 
-      // Icons — count from iconsInUse prop (no extra API call needed)
+      // Update icons
       const iconCountMap = new Map<string, number>()
       iconsInUse.forEach((icon) => {
         if (icon) iconCountMap.set(icon, (iconCountMap.get(icon) ?? 0) + 1)
@@ -72,10 +86,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
       iconList.sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon))
       setIcons(iconList)
     } catch (error) {
-      console.error('Error fetching presets:', error)
-      setTags(allTags.map((tag) => ({ name: tag, count: 0 })))
-      const uniqueIcons = [...new Set(iconsInUse.filter(Boolean))]
-      setIcons(uniqueIcons.map((icon) => ({ icon, count: iconsInUse.filter((i) => i === icon).length })))
+      console.error('Error refreshing data:', error)
     }
   }
 
@@ -85,7 +96,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onTagRenamed(editingTag.old, editingTag.new.trim())
-      await fetchPresetsAndCounts()
+      await refreshData()
       setEditingTag(null)
     } catch (error) {
       console.error('Error renaming tag:', error)
@@ -99,7 +110,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onTagDeleted(deleteConfirm.name)
-      await fetchPresetsAndCounts()
+      await refreshData()
       setDeleteConfirm(null)
     } catch (error) {
       console.error('Error deleting tag:', error)
@@ -113,7 +124,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onIconUpdated(editingIcon.old, editingIcon.new.trim())
-      await fetchPresetsAndCounts()
+      await refreshData()
       setEditingIcon(null)
     } catch (error) {
       console.error('Error updating icon:', error)
@@ -127,7 +138,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onTagCreated(creatingTag.trim())
-      await fetchPresetsAndCounts()
+      await refreshData()
       setCreatingTag('')
       setShowCreateModal(null)
     } catch (error) {
@@ -142,7 +153,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onIconCreated(creatingIcon.trim())
-      await fetchPresetsAndCounts()
+      await refreshData()
       setCreatingIcon('')
       setShowCreateModal(null)
     } catch (error) {

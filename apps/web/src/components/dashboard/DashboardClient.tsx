@@ -42,6 +42,8 @@ interface Props {
   initialBookmarks: Bookmark[]
   initialTotal: number
   initialFolders: Folder[]
+  initialTagsWithCounts: Array<{ name: string; count: number }>
+  initialIconsWithCounts: Array<{ icon: string; count: number }>
   user: { name: string; image: string | null }
 }
 
@@ -58,7 +60,7 @@ function countBookmarksInFolders(folders: Folder[]): number {
   return folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
 }
 
-export function DashboardClient({ initialBookmarks, initialTotal, initialFolders, user }: Props) {
+export function DashboardClient({ initialBookmarks, initialTotal, initialFolders, initialTagsWithCounts, initialIconsWithCounts, user }: Props) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
   const [total, setTotal] = useState(initialTotal)
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
@@ -425,6 +427,8 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
             <TagsIconsManager
               allTags={allTags}
               iconsInUse={iconsInUse}
+              initialTags={initialTagsWithCounts}
+              initialIcons={initialIconsWithCounts}
               onTagRenamed={handleTagRenamed}
               onTagDeleted={handleTagDeleted}
               onIconUpdated={handleIconUpdated}
