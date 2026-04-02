@@ -389,6 +389,8 @@ body {
   gap: 2px;
 }
 
+.recent-actions[hidden] { display: none; }
+
 .recent-item:hover .recent-delete,
 .recent-item:focus-within .recent-delete,
 .recent-item:hover .recent-edit,

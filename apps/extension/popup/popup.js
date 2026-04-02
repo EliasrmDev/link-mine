@@ -538,6 +538,7 @@ function showDeleteConfirm(li, id) {
     e.stopPropagation()
     confirm.remove()
     if (actions) actions.hidden = false
+    if (deleteBtn) deleteBtn.hidden = false
   })
 
   li.appendChild(confirm)
