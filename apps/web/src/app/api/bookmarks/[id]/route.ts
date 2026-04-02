@@ -62,8 +62,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) return badRequest(parsed.error.issues[0].message)
 
   const { folderId, reminderDate, ...rest } = parsed.data
+  const normalizedIcon = rest.icon !== undefined
+    ? (rest.icon?.trim() || null)
+    : undefined
   const normalizedRest = {
     ...rest,
+    ...(normalizedIcon !== undefined ? { icon: normalizedIcon } : {}),
     ...(rest.tags ? { tags: normalizeTags(rest.tags) } : {}),
   }
 
@@ -88,6 +92,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       } as any,
       include: { folder: { select: { id: true, name: true } } },
     })
+
+    if (normalizedRest.tags && normalizedRest.tags.length > 0) {
+      await Promise.all(
+        normalizedRest.tags.map((value) => prisma.$executeRaw`
+          INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
+          VALUES (${crypto.randomUUID()}, ${auth.userId}, 'TAG'::"public"."PresetType", ${value}, NOW())
+          ON CONFLICT ("userId", "type", "value") DO NOTHING
+        `),
+      )
+    }
+
+    if (normalizedIcon) {
+      await prisma.$executeRaw`
+        INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
+        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${normalizedIcon}, NOW())
+        ON CONFLICT ("userId", "type", "value") DO NOTHING
+      `
+    }
+
     broadcastToUser(auth.userId, { type: 'bookmark:saved', bookmark: updated })
     return NextResponse.json(updated)
   } catch (err: unknown) {

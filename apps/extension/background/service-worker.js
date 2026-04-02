@@ -22,6 +22,7 @@ import {
   apiFetchDueReminders,
   apiRefreshAccessToken,
   ensureAccessToken,
+  BASE_URL,
 } from '../shared/api.js'
 
 // ─── External message: web app sends tokens after OAuth login ─────────────────
@@ -63,32 +64,88 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command !== 'save-page') return
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (!tab?.url) return
+  if (!tab?.url || !tab?.id) return
+
+  // Skip non-http(s) URLs
+  if (!tab.url.startsWith('http://') && !tab.url.startsWith('https://')) {
+    showTabNotification(tab.id, 'Cannot save this page type', 'error')
+    return
+  }
 
   const refreshToken = await getRefreshToken()
   if (!refreshToken) {
+    showTabNotification(tab.id, 'Please sign in to SavePath first', 'error')
     chrome.action.openPopup?.()
     return
   }
 
-  const result = await apiSaveBookmark(
-    { url: tab.url, title: tab.title ?? tab.url, tags: [], folderId: null },
-    refreshToken,
-  )
+  // Show loading notification
+  showTabNotification(tab.id, 'Saving page...', 'info', 1500)
+
+  const bookmark = {
+    url: tab.url,
+    title: tab.title ?? tab.url,
+    tags: [],
+    icon: null,
+    reminderDate: null,
+    folderId: null
+  }
+
+  const result = await apiSaveBookmark(bookmark, refreshToken)
 
   if (result.authError) {
     // Refresh token revoked — clear everything and prompt re-login
     await clearAllTokens()
+    showTabNotification(tab.id, 'Session expired. Please sign in again', 'error')
     chrome.action.openPopup?.()
     return
   }
 
   if (result.ok) {
+    showTabNotification(tab.id, `Saved: ${bookmark.title}`, 'success')
     flashBadge('✓', '#22c55e', 2000)
+
+    // Broadcast to web app for real-time sync
+    try {
+      const accessToken = await ensureAccessToken(refreshToken)
+      if (accessToken) {
+        fetch(`${BASE_URL}/api/sync/broadcast`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            type: 'BOOKMARK_CREATED',
+            bookmark: result.bookmark
+          })
+        }).catch(() => {}) // Fire and forget
+      }
+    } catch {}
+  } else if (result.status === 409) {
+    showTabNotification(tab.id, 'Page already saved', 'info')
+    flashBadge('✓', '#f59e0b', 2000)
   } else {
+    const errorMsg = result.error || 'Failed to save page'
+    showTabNotification(tab.id, `✕ ${errorMsg}`, 'error')
     flashBadge('!', '#ef4444', 3000)
   }
 })
+
+// Helper function to show notifications in tab
+async function showTabNotification(tabId, message, type = 'success', duration = 3000) {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'SHOW_NOTIFICATION',
+      message,
+      variant: type,
+      duration
+    })
+  } catch {
+    // Tab might not have content script loaded or be restricted
+    console.log('Could not send notification to tab', tabId)
+  }
+}
 
 // ─── Alarms ──────────────────────────────────────────────────────────────────
 
@@ -167,6 +224,7 @@ function updateReminderBadge(count) {
     chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' })
     chrome.action.setBadgeText({ text: String(count) })
   } else {
+    chrome.action.setBadgeBackgroundColor({ color: '#00000000' })
     chrome.action.setBadgeText({ text: '' })
   }
 }

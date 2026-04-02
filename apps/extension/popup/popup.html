@@ -44,7 +44,7 @@
     <section id="view-main" class="view" hidden aria-label="Save bookmark">
 
       <!-- Reminder banner (shown when reminders are due) -->
-      <div id="reminder-banner" class="reminder-banner" hidden role="alert" aria-live="polite">
+      <div id="reminder-banner" class="reminder-banner" hidden role="alert" aria-live="polite" style="display: none;">
         <span class="reminder-icon" aria-hidden="true">⏰</span>
         <span id="reminder-text" class="reminder-text"></span>
         <a id="reminder-link" href="#" target="_blank" rel="noopener noreferrer" class="reminder-link">
@@ -110,6 +110,18 @@
           <select id="folder-select" class="select">
             <option value="">No folder</option>
           </select>
+        </div>
+
+        <!-- Reminder -->
+        <div class="field">
+          <label for="page-reminder-input" class="label">Reminder (optional)</label>
+          <input
+            id="page-reminder-input"
+            class="text-input"
+            type="date"
+            aria-label="Set reminder date"
+            title="Set a reminder for this bookmark"
+          />
         </div>
 
         <!-- Actions -->

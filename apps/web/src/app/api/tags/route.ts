@@ -7,18 +7,13 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth(request)
   if ('error' in auth) return auth.error
 
-  const bookmarks = await prisma.bookmark.findMany({
-    where: { userId: auth.userId },
-    select: { tags: true },
-  })
+  const tags = await prisma.$queryRaw<Array<{ value: string }>>`
+    SELECT "value"
+    FROM "public"."UserPreset"
+    WHERE "userId" = ${auth.userId}
+      AND "type" = 'TAG'::"public"."PresetType"
+    ORDER BY "value" ASC
+  `
 
-  const set = new Set<string>()
-  for (const bookmark of bookmarks) {
-    for (const tag of bookmark.tags) {
-      const value = tag.trim().toLowerCase()
-      if (value) set.add(value)
-    }
-  }
-
-  return NextResponse.json({ tags: Array.from(set).sort() })
+  return NextResponse.json({ tags: tags.map((t) => t.value).sort() })
 }

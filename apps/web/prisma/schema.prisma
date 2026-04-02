@@ -56,9 +56,27 @@ model User {
   sessions       Session[]
   folders        Folder[]
   bookmarks      Bookmark[]
+  presets        UserPreset[]
   extensionTokens ExtensionToken[]
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+}
+
+enum PresetType {
+  TAG
+  ICON
+}
+
+model UserPreset {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      PresetType
+  value     String
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, type, value])
+  @@index([userId, type])
 }
 
 model Folder {

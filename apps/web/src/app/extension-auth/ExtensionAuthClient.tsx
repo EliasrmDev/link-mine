@@ -2,6 +2,18 @@
 
 import { useEffect, useState } from 'react'
 
+// Declare chrome global for TypeScript
+declare global {
+  interface Window {
+    chrome?: {
+      runtime?: {
+        sendMessage: (extensionId: string, message: any, callback?: () => void) => void
+        lastError?: any
+      }
+    }
+  }
+}
+
 interface Props {
   extensionId: string | null
   isValidId: boolean
@@ -29,9 +41,8 @@ export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props)
         // 2. Send tokens to extension via chrome.runtime.sendMessage
         //    We forward both the refresh token and the pre-issued access token
         //    so the extension is immediately ready without a second round-trip.
-        if (extensionId && typeof chrome !== 'undefined' && chrome.runtime) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ;(chrome as any).runtime.sendMessage(
+        if (extensionId && typeof window !== 'undefined' && window.chrome?.runtime) {
+          window.chrome.runtime.sendMessage(
             extensionId,
             {
               type:                'SAVEPATH_AUTH_TOKEN',
@@ -40,9 +51,8 @@ export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props)
               accessTokenExpiresAt: data.accessTokenExpiresAt,
             },
             () => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              if ((chrome as any).runtime.lastError) {
-                console.warn('Extension message failed:', (chrome as any).runtime.lastError)
+              if (window.chrome?.runtime?.lastError) {
+                console.warn('Extension message failed:', window.chrome.runtime.lastError)
               }
             },
           )

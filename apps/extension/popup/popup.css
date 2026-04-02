@@ -178,7 +178,7 @@ body {
 .icon-picker {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -560,7 +560,8 @@ body {
 }
 
 .edit-title-input,
-.edit-icon-input {
+.edit-icon-input,
+.edit-reminder-input {
   width: 100%;
   padding: 5px 8px;
   border: 1px solid var(--color-border);

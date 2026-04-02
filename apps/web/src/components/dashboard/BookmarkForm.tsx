@@ -69,17 +69,20 @@ export function BookmarkForm({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [syncedTags, setSyncedTags] = useState<string[]>([])
+  const [syncedIcons, setSyncedIcons] = useState<string[]>([])
   const firstInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     firstInputRef.current?.focus()
 
     const loadTags = async () => {
-      const res = await fetch('/api/tags')
+      const res = await fetch('/api/presets')
       if (!res.ok) return
-      const data = await res.json().catch(() => ({ tags: [] }))
+      const data = await res.json().catch(() => ({ tags: [], icons: [] }))
       const tags = Array.isArray(data.tags) ? data.tags.map((t: unknown) => String(t)) : []
+      const icons = Array.isArray(data.icons) ? data.icons.map((i: unknown) => String(i).trim()) : []
       setSyncedTags(normalizeTagsCaseInsensitive(tags))
+      setSyncedIcons(Array.from(new Set(icons.filter(Boolean))))
     }
 
     void loadTags()
@@ -128,7 +131,13 @@ export function BookmarkForm({
         return
       }
 
+      const data = await res.json().catch(() => null)
+      const nextIcon = data?.icon ? String(data.icon).trim() : ''
+
       setSyncedTags((prev) => normalizeTagsCaseInsensitive([...prev, ...normalizedTags]))
+      if (nextIcon) {
+        setSyncedIcons((prev) => Array.from(new Set([...prev, nextIcon])))
+      }
 
       onSave()
     } finally {
@@ -144,6 +153,7 @@ export function BookmarkForm({
   )
 
   const allPresetTags = normalizeTagsCaseInsensitive([...PRESET_TAGS, ...syncedTags])
+  const allPresetIcons = Array.from(new Set([...PRESET_ICONS, ...syncedIcons]))
 
   function togglePresetTag(tag: string) {
     const next = selectedTags.includes(tag)
@@ -204,7 +214,7 @@ export function BookmarkForm({
               Icon
             </label>
             <div className="flex flex-wrap items-center gap-1">
-              {PRESET_ICONS.map((emoji) => (
+              {allPresetIcons.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
@@ -276,7 +286,13 @@ export function BookmarkForm({
               type="date"
               value={reminderDate}
               onChange={(e) => setReminderDate(e.target.value)}
-              min={new Date().toISOString().slice(0, 10)}
+              min={(() => {
+                const today = new Date()
+                const year = today.getFullYear()
+                const month = String(today.getMonth() + 1).padStart(2, '0')
+                const day = String(today.getDate()).padStart(2, '0')
+                return `${year}-${month}-${day}`
+              })()}
               className="input"
             />
             {reminderDate && (

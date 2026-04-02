@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
 
   const { url, title, tags, icon, reminderDate, folderId } = parsed.data
   const normalizedTags = normalizeTags(tags)
+  const normalizedIcon = icon?.trim() || null
 
   // Verify folder ownership if provided
   if (folderId) {
@@ -123,13 +124,32 @@ export async function POST(request: NextRequest) {
         url,
         title,
         tags: normalizedTags,
-        icon: icon ?? null,
+        icon: normalizedIcon,
         reminderDate: reminderDate ? new Date(reminderDate) : null,
         folderId: folderId ?? null,
         userId: auth.userId,
       } as any,
       include: { folder: { select: { id: true, name: true } } },
     })
+
+    if (normalizedTags.length > 0) {
+      await Promise.all(
+        normalizedTags.map((value) => prisma.$executeRaw`
+          INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
+          VALUES (${crypto.randomUUID()}, ${auth.userId}, 'TAG'::"public"."PresetType", ${value}, NOW())
+          ON CONFLICT ("userId", "type", "value") DO NOTHING
+        `),
+      )
+    }
+
+    if (normalizedIcon) {
+      await prisma.$executeRaw`
+        INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
+        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${normalizedIcon}, NOW())
+        ON CONFLICT ("userId", "type", "value") DO NOTHING
+      `
+    }
+
     // Notify any open dashboard tabs for this user
     broadcastToUser(auth.userId, { type: 'bookmark:saved', bookmark })
 

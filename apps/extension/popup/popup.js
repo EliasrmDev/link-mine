@@ -10,11 +10,13 @@ import {
   getCachedFolders,
   addPending,
   getReminderCount,
+  setReminderCount,
 } from '../shared/storage.js'
 import {
   apiCheckAuth,
   apiFetchBookmarks,
-  apiFetchTags,
+  apiFetchDueReminders,
+  apiFetchPresets,
   apiFetchFolders,
   apiSaveBookmark,
   apiDeleteBookmark,
@@ -61,6 +63,7 @@ const btnClearIcon = $('btn-clear-icon')
 const btnCloseIcon = $('btn-close-icon')
 const pageTagsInput = $('page-tags-input')
 const pageTagPresets = $('page-tag-presets')
+const pageReminderInput = $('page-reminder-input')
 const folderSelect = $('folder-select')
 const saveStatus   = $('save-status')
 const recentList   = $('recent-list')
@@ -81,6 +84,7 @@ let refreshToken  = null
 let allBookmarks  = []
 let searchTimeout = null
 let syncedTags = []
+let syncedIcons = []
 
 renderIconPresetButtons()
 renderTagPresetButtons()
@@ -119,11 +123,23 @@ async function init() {
   // Auth OK — show logout button and populate the UI in parallel
   btnLogout.hidden = false
   showView('main')
+
+  // Inicializar banner como oculto hasta confirmar reminders
+  reminderBanner.hidden = true
+
   await refreshTagPresetsFromServer()
   renderTagPresetButtons()
   populateCurrentTab()
-  await Promise.all([loadFolders(), loadRecent(), showReminderBanner(), refreshSaveButtonState()])
+  await Promise.all([loadFolders(), loadRecent(), refreshReminderState(), refreshSaveButtonState()])
 }
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return
+  if (!changes.reminderCount) return
+
+  const newCount = Number(changes.reminderCount.newValue ?? 0)
+  renderReminderBanner(newCount)
+})
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
@@ -153,14 +169,47 @@ function showView(name) {
 
 // ─── Reminder banner ──────────────────────────────────────────────────────────
 
-async function showReminderBanner() {
-  const count = await getReminderCount()
-  if (count <= 0) {
-    reminderBanner.hidden = true
+function updateReminderBadge(count) {
+  if (count > 0) {
+    chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' })
+    chrome.action.setBadgeText({ text: String(count) })
     return
   }
+
+  chrome.action.setBadgeText({ text: '' })
+}
+
+function renderReminderBanner(count) {
+  if (!count || count <= 0) {
+    reminderBanner.hidden = true
+    reminderBanner.style.display = 'none'
+    return
+  }
+
   reminderText.textContent = `${count} reminder${count === 1 ? '' : 's'} due`
   reminderBanner.hidden = false
+  reminderBanner.style.display = 'block'
+}
+
+async function refreshReminderState() {
+  if (!refreshToken) {
+    renderReminderBanner(0)
+    updateReminderBadge(0)
+    return
+  }
+
+  const result = await apiFetchDueReminders(refreshToken)
+  if (!result.ok) {
+    // Si falla la API, asumir 0 reminders para ocultar el banner
+    renderReminderBanner(0)
+    updateReminderBadge(0)
+    return
+  }
+
+  const count = result.count || 0
+  await setReminderCount(count)
+  renderReminderBanner(count)
+  updateReminderBadge(count)
 }
 
 // ─── Current tab ─────────────────────────────────────────────────────────────
@@ -177,6 +226,7 @@ function populateCurrentTab() {
   pageUrl.title = url
   pageIconInput.value = ''
   pageTagsInput.value = ''
+  pageReminderInput.value = ''
   pageIconEditor.hidden = true
 
   if (domain) {
@@ -193,7 +243,9 @@ function populateCurrentTab() {
 function renderIconPresetButtons() {
   if (!pageIconPresets) return
 
-  pageIconPresets.innerHTML = PRESET_ICONS.map((icon) => (
+  const allPresetIcons = Array.from(new Set([...PRESET_ICONS, ...syncedIcons]))
+
+  pageIconPresets.innerHTML = allPresetIcons.map((icon) => (
     `<button type="button" class="icon-preset" data-icon="${icon}" aria-label="Choose icon ${icon}">${icon}</button>`
   )).join('')
 
@@ -276,7 +328,7 @@ function renderTagPresetButtons() {
 }
 
 async function refreshTagPresetsFromServer() {
-  const result = await apiFetchTags(refreshToken)
+  const result = await apiFetchPresets(refreshToken)
   if (result.authError) {
     await handleAuthError()
     return
@@ -284,6 +336,10 @@ async function refreshTagPresetsFromServer() {
   if (!result.ok) return
 
   syncedTags = parseTagsInput(result.tags.join(','))
+  syncedIcons = Array.isArray(result.icons)
+    ? result.icons.map((value) => String(value).trim()).filter(Boolean)
+    : []
+  renderIconPresetButtons()
   renderTagPresetButtons()
   syncTagPresetState()
 }
@@ -466,6 +522,7 @@ function showDeleteConfirm(li, id) {
     e.stopPropagation()
     await apiDeleteBookmark(id, refreshToken)
     li.remove()
+    await refreshReminderState()
     await refreshSaveButtonState()
   })
 
@@ -491,6 +548,7 @@ function showEditForm(li, bm) {
   form.innerHTML = `
     <input class="edit-title-input" type="text" maxlength="500" aria-label="Edit bookmark title" />
     <input class="edit-icon-input" type="text" maxlength="10" placeholder="icon" aria-label="Edit bookmark icon" />
+    <input class="edit-reminder-input" type="datetime-local" aria-label="Edit reminder date" />
     <div class="recent-edit-buttons">
       <button class="edit-save" aria-label="Save changes">Save</button>
       <button class="edit-cancel" aria-label="Cancel edit">Cancel</button>
@@ -499,8 +557,10 @@ function showEditForm(li, bm) {
 
   const titleInput = form.querySelector('.edit-title-input')
   const iconInput = form.querySelector('.edit-icon-input')
+  const reminderInput = form.querySelector('.edit-reminder-input')
   titleInput.value = bm.title ?? ''
   iconInput.value = bm.icon ?? ''
+  reminderInput.value = bm.reminderDate ? new Date(bm.reminderDate).toISOString().slice(0, 16) : ''
 
   const closeForm = () => {
     form.remove()
@@ -517,6 +577,7 @@ function showEditForm(li, bm) {
   const saveEdit = async () => {
     const nextTitle = titleInput.value.trim()
     const nextIcon = iconInput.value.trim()
+    const nextReminderDate = reminderInput.value ? new Date(reminderInput.value).toISOString() : null
 
     if (!nextTitle) {
       showStatus('Title is required.', 'error')
@@ -526,7 +587,11 @@ function showEditForm(li, bm) {
 
     const result = await apiUpdateBookmark(
       bm.id,
-      { title: nextTitle, icon: nextIcon || null },
+      {
+        title: nextTitle,
+        icon: nextIcon || null,
+        reminderDate: nextReminderDate
+      },
       refreshToken,
     )
 
@@ -543,6 +608,7 @@ function showEditForm(li, bm) {
     showStatus('Bookmark updated.', 'success')
     closeForm()
     await loadRecent(recentSearch.value.trim())
+    await refreshReminderState()
     await refreshSaveButtonState()
   }
 
@@ -589,6 +655,7 @@ btnSave.addEventListener('click', async () => {
   const title = pageTitleInput.value.trim() || currentTab.title || currentTab.url
   const icon = pageIconInput.value.trim()
   const tags = getSelectedTags()
+  const reminderDate = pageReminderInput.value ? new Date(pageReminderInput.value).toISOString() : null
 
   const bookmark = {
     url: currentTab.url,
@@ -596,6 +663,7 @@ btnSave.addEventListener('click', async () => {
     icon: icon || null,
     tags,
     folderId: folderSelect.value || null,
+    reminderDate,
   }
 
   const result = await apiSaveBookmark(bookmark, refreshToken)
@@ -610,6 +678,7 @@ btnSave.addEventListener('click', async () => {
     setSaveButtonState({ disabled: true, text: '✓ Saved' })
     await refreshTagPresetsFromServer()
     await loadRecent()
+    await refreshReminderState()
   } else if (result.status === 409) {
     showStatus('Already saved.', 'success')
     setSaveButtonState({ disabled: true, text: SAVE_BUTTON_DUPLICATE_TEXT })

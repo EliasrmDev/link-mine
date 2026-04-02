@@ -7,14 +7,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true)
-    // Apply persisted theme on mount
-    const stored = localStorage.getItem('theme')
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const isDark = stored === 'dark' || (!stored && prefersDark)
-    document.documentElement.classList.toggle('dark', isDark)
   }, [])
 
-  // Prevent flash of wrong theme
+  // Prevent hydration mismatch
   if (!mounted) return <>{children}</>
   return <>{children}</>
 }

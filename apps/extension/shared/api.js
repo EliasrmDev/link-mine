@@ -129,22 +129,34 @@ export async function apiFetchBookmarks(refreshToken, {
 }
 
 /**
- * Fetch canonical user tags (lowercase, unique).
+ * Fetch canonical persistent presets for the user.
  */
-export async function apiFetchTags(refreshToken) {
+export async function apiFetchPresets(refreshToken) {
   const accessToken = await ensureAccessToken(refreshToken)
-  if (!accessToken) return { ok: false, tags: [], authError: true }
+  if (!accessToken) return { ok: false, tags: [], icons: [], authError: true }
 
   try {
-    const res = await fetch(`${BASE_URL}/api/tags`, {
+    const res = await fetch(`${BASE_URL}/api/presets`, {
       headers: jsonHeaders(accessToken),
     })
-    if (!res.ok) return { ok: false, tags: [] }
+    if (!res.ok) return { ok: false, tags: [], icons: [] }
     const data = await res.json()
-    return { ok: true, tags: Array.isArray(data.tags) ? data.tags : [] }
+    return {
+      ok: true,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      icons: Array.isArray(data.icons) ? data.icons : [],
+    }
   } catch {
-    return { ok: false, tags: [] }
+    return { ok: false, tags: [], icons: [] }
   }
+}
+
+/**
+ * Backward-compatible tags helper.
+ */
+export async function apiFetchTags(refreshToken) {
+  const result = await apiFetchPresets(refreshToken)
+  return { ok: result.ok, tags: result.tags, authError: result.authError }
 }
 
 /**
