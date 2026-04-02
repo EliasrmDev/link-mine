@@ -6,6 +6,3 @@ Place PNG icons here:
 - icon48.png  (48×48)
 - icon128.png (128×128)
 
-Tools to generate from an SVG:
-  npx @squoosh/cli --resize '{"enabled":true,"width":16}' icon.svg -d .
-or use https://realfavicongenerator.net

@@ -1,5 +1,5 @@
 /**
- * API client for the SavePath web app.
+ * API client for the LinkMine web app.
  *
  * Token strategy:
  *  - refreshToken (long-lived, 90 days) — stored in chrome.storage.local

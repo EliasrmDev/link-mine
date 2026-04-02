@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(JSON.stringify(exportData, null, 2), {
     headers: {
       'Content-Type': 'application/json',
-      'Content-Disposition': 'attachment; filename="savepath-bookmarks.json"',
+      'Content-Disposition': 'attachment; filename="linkmine-bookmarks.json"',
     },
   })
 }

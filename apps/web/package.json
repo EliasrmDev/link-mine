@@ -1,5 +1,5 @@
 {
-  "name": "@savepath/web",
+  "name": "@linkmine/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -16,7 +16,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.2",
     "@prisma/client": "^5.22.0",
-    "@savepath/shared": "*",
+    "@linkmine/shared": "*",
     "next": "15.1.6",
     "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",

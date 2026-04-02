@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { BookmarkFilters } from '@savepath/shared'
+import type { BookmarkFilters } from '@linkmine/shared'
 
 interface Props {
   filters: BookmarkFilters
@@ -183,7 +183,6 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: P
             {allTags.length > 0 && (
               <div>
                 <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">Tags</p>
-                <div className="flex flex-wrap gap-1">
                   {allTags.map((tag) => {
                     const active = (filters.tags ?? []).includes(tag)
                     return (
@@ -201,7 +200,6 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: P
                       </button>
                     )
                   })}
-                </div>
               </div>
             )}
 

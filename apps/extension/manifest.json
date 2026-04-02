@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "SavePath",
+  "name": "LinkMine",
   "version": "1.0.0",
   "description": "Save and organize bookmarks. Sync across devices.",
 
@@ -24,7 +24,7 @@
 
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "SavePath",
+    "default_title": "LinkMine",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -59,7 +59,7 @@
         "default": "Ctrl+Shift+S",
         "mac": "Command+Shift+S"
       },
-      "description": "Save current page to SavePath"
+      "description": "Save current page to LinkMine"
     }
   },
 

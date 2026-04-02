@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Folder } from '@savepath/shared'
+import type { Folder } from '@linkmine/shared'
 
 interface Props {
   folders: Folder[]
@@ -32,11 +32,11 @@ export function Sidebar({
     >
       {/* Logo */}
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <span className="text-lg font-bold text-brand-600">SavePath</span>
+        <span className="text-lg font-bold text-brand-400">LinkMine</span>
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto px-3 py-3">
+      <div className="flex-1 overflow-y-auto gap-3 px-3 py-3">
         {/* All bookmarks */}
         <SidebarItem
           label="All bookmarks"
@@ -97,7 +97,7 @@ export function Sidebar({
         {folders.length === 0 && (
           <button
             onClick={() => onAddFolder(null)}
-            className="mt-4 flex w-full items-center gap-2 rounded-lg border-2 border-dashed border-gray-200 p-3 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-500 dark:border-gray-700 dark:hover:border-brand-700"
+            className="mt-4 flex w-full items-center gap-2 rounded-lg border-2 border-dashed border-gray-200 p-3 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:hover:border-brand-700"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -150,9 +150,9 @@ function SidebarItem({
     <button
       onClick={onSelect}
       aria-current={selected ? 'page' : undefined}
-      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 mb-3 text-sm transition-colors ${
         selected
-          ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+          ? 'bg-brand-50 font-medium text-brand-400 dark:bg-brand-900/30 dark:text-brand-300'
           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
       }`}
     >

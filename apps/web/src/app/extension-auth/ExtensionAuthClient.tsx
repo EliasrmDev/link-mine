@@ -45,7 +45,7 @@ export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props)
           window.chrome.runtime.sendMessage(
             extensionId,
             {
-              type:                'SAVEPATH_AUTH_TOKEN',
+              type:                'LINKMINE_AUTH_TOKEN',
               token:               data.token,               // backward compat
               accessToken:         data.accessToken,
               accessTokenExpiresAt: data.accessTokenExpiresAt,
@@ -76,7 +76,7 @@ export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props)
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
       <div className="card max-w-sm w-full p-8 text-center">
-        <span className="text-2xl font-bold text-brand-600">SavePath</span>
+        <span className="text-2xl font-bold text-brand-400">LinkMine</span>
 
         {status === 'connecting' && (
           <>

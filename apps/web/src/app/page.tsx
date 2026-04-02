@@ -9,7 +9,7 @@ export default async function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <span className="text-xl font-bold text-brand-600">SavePath</span>
+          <span className="text-xl font-bold text-brand-400">LinkMine</span>
           <nav className="flex items-center gap-3">
             {session ? (
               <Link href="/dashboard" className="btn-primary">
@@ -42,7 +42,7 @@ export default async function LandingPage() {
             <span className="text-brand-600">Find it later.</span>
           </h1>
           <p className="mx-auto mb-10 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
-            SavePath is a Chrome extension + web app that lets you bookmark any page in one click,
+            LinkMine is a Chrome extension + web app that lets you bookmark any page in one click,
             organize links into folders, and sync everything across your devices.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
@@ -112,7 +112,7 @@ export default async function LandingPage() {
       </main>
 
       <footer className="border-t border-gray-200 py-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
-        <p>&copy; {new Date().getFullYear()} SavePath. Built with Next.js &amp; Prisma.</p>
+        <p>&copy; {new Date().getFullYear()} LinkMine. Built with Next.js &amp; Prisma.</p>
       </footer>
     </div>
   )

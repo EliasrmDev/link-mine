@@ -29,7 +29,7 @@ export default async function LoginPage({
       <div className="w-full max-w-sm">
         <div className="card p-8">
           <div className="mb-6 text-center">
-            <span className="text-2xl font-bold text-brand-600">SavePath</span>
+            <span className="text-2xl font-bold text-brand-400">LinkMine</span>
             <h1 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
               {isFromExtension ? 'Connect your extension' : 'Sign in to your account'}
             </h1>

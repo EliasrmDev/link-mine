@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import type { Bookmark, Folder } from '@savepath/shared'
-import { PRESET_ICONS } from '@savepath/shared'
-import { PRESET_TAGS } from '@savepath/shared'
+import type { Bookmark, Folder } from '@linkmine/shared'
+import { PRESET_ICONS } from '@linkmine/shared'
+import { PRESET_TAGS } from '@linkmine/shared'
 import { Modal } from '../ui/Modal'
 
 function normalizeTagsCaseInsensitive(tags: string[]): string[] {
@@ -243,7 +243,7 @@ export function BookmarkForm({
           </div>
 
           <div>
-            <label htmlFor="bm-tags" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="bm-tags" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Tags
             </label>
             <div className="mb-2 flex flex-wrap gap-1">

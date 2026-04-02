@@ -1,4 +1,4 @@
-# SavePath
+# LinkMine
 
 Save, organize, and sync bookmarks across devices — Chrome extension + web dashboard.
 

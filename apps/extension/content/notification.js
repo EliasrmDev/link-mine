@@ -1,20 +1,20 @@
 /**
- * Content Script - Shows in-browser notifications for SavePath
+ * Content Script - Shows in-browser notifications for LinkMine
  */
 
 // Create and show notification toast
 function showNotification(message, type = 'success', duration = 3000) {
   // Remove any existing notifications
-  const existing = document.querySelector('.savepath-notification')
+  const existing = document.querySelector('.linkmine-notification')
   if (existing) existing.remove()
 
   // Create notification element
   const notification = document.createElement('div')
-  notification.className = `savepath-notification savepath-notification--${type}`
+  notification.className = `linkmine-notification linkmine-notification--${type}`
   notification.innerHTML = `
-    <div class="savepath-notification__content">
-      <span class="savepath-notification__icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span>
-      <span class="savepath-notification__message">${message}</span>
+    <div class="linkmine-notification__content">
+      <span class="linkmine-notification__icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</span>
+      <span class="linkmine-notification__message">${message}</span>
     </div>
   `
 
@@ -40,13 +40,13 @@ function showNotification(message, type = 'success', duration = 3000) {
     cursor: pointer;
   `
 
-  notification.querySelector('.savepath-notification__content').style.cssText = `
+  notification.querySelector('.linkmine-notification__content').style.cssText = `
     display: flex;
     align-items: center;
     gap: 8px;
   `
 
-  notification.querySelector('.savepath-notification__icon').style.cssText = `
+  notification.querySelector('.linkmine-notification__icon').style.cssText = `
     flex-shrink: 0;
     font-weight: bold;
   `

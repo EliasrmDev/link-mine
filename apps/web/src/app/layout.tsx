@@ -7,13 +7,13 @@ const inter = Inter({ subsets: ['latin'], display: 'swap' })
 
 export const metadata: Metadata = {
   title: {
-    default: 'SavePath — Save and organize your bookmarks',
-    template: '%s | SavePath',
+    default: 'LinkMine — Save and organize your bookmarks',
+    template: '%s | LinkMine',
   },
   description:
-    'SavePath lets you save, organize, and sync bookmarks across all your devices with a simple Chrome extension.',
+    'LinkMine lets you save, organize, and sync bookmarks across all your devices with a simple Chrome extension.',
   openGraph: {
-    title: 'SavePath',
+    title: 'LinkMine',
     description: 'Save and organize your bookmarks. Sync across devices.',
     type: 'website',
   },

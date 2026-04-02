@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import type { Bookmark, Folder, BookmarkFilters } from '@savepath/shared'
+import type { Bookmark, Folder, BookmarkFilters } from '@linkmine/shared'
 import { Sidebar } from './Sidebar'
 import { BookmarkGrid } from './BookmarkGrid'
 import { BookmarkForm } from './BookmarkForm'
@@ -10,7 +10,7 @@ import { TopBar } from './TopBar'
 import { FilterBar } from './FilterBar'
 import { ConfirmModal } from '../ui/ConfirmModal'
 
-const FILTERS_STORAGE_KEY = 'savepath_filters'
+const FILTERS_STORAGE_KEY = 'linkmine_filters'
 
 const DEFAULT_FILTERS: BookmarkFilters = {
   sortBy: 'createdAt',

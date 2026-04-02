@@ -1,5 +1,5 @@
 /**
- * SavePath Extension Popup
+ * LinkMine Extension Popup
  * Pure vanilla JS — no build step required.
  */
 

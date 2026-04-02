@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: savepath-db
+    container_name: linkmine-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -21,7 +21,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@savepath.com
+      - PGADMIN_DEFAULT_EMAIL=admin@linkmine.com
       - PGADMIN_DEFAULT_PASSWORD=admin
     volumes:
       - pgadmin_data:/var/lib/pgadmin

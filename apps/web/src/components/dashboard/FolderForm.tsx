@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import type { Folder } from '@savepath/shared'
+import type { Folder } from '@linkmine/shared'
 import { Modal } from '../ui/Modal'
 
 interface Props {

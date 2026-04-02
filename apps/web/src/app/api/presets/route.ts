@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api'
-import { PRESET_TAGS, PRESET_ICONS } from '@savepath/shared'
+import { PRESET_TAGS, PRESET_ICONS } from '@linkmine/shared'
 
 type PresetRow = { type: 'TAG' | 'ICON'; value: string }
 

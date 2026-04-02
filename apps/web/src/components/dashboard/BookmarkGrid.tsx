@@ -1,6 +1,6 @@
 'use client'
 
-import type { Bookmark, Folder } from '@savepath/shared'
+import type { Bookmark, Folder } from '@linkmine/shared'
 
 const STALE_DAYS = 30
 
@@ -156,7 +156,7 @@ function BookmarkCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackAccess(bookmark.id)}
-            className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
+            className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
           >
             {bookmark.title}
           </a>
@@ -204,7 +204,7 @@ function BookmarkCard({
               📁 {bookmark.folder.name}
             </span>
           )}
-          {bookmark.reminderDate && !due && !upcoming && (
+          {bookmark.reminderDate && (
             <span className="text-xs text-gray-400">
               🔔 {new Date(bookmark.reminderDate).toLocaleDateString()}
             </span>

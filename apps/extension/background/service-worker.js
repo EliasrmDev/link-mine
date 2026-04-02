@@ -1,5 +1,5 @@
 /**
- * SavePath — Background Service Worker (MV3)
+ * LinkMine — Background Service Worker (MV3)
  *
  * Responsibilities:
  *  - Receive auth tokens from web app (external message)
@@ -28,7 +28,7 @@ import {
 // ─── External message: web app sends tokens after OAuth login ─────────────────
 
 chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== 'SAVEPATH_AUTH_TOKEN') return
+  if (message?.type !== 'LINKMINE_AUTH_TOKEN') return
 
   const { token, accessToken, accessTokenExpiresAt } = message
 
@@ -74,7 +74,7 @@ chrome.commands.onCommand.addListener(async (command) => {
 
   const refreshToken = await getRefreshToken()
   if (!refreshToken) {
-    showTabNotification(tab.id, 'Please sign in to SavePath first', 'error')
+    showTabNotification(tab.id, 'Please sign in to LinkMine first', 'error')
     chrome.action.openPopup?.()
     return
   }
