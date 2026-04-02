@@ -72,6 +72,8 @@ const linkDashboard = $('link-dashboard')
 const reminderBanner = $('reminder-banner')
 const reminderText   = $('reminder-text')
 const reminderLink   = $('reminder-link')
+const shortcutBanner = $('shortcut-banner')
+const shortcutText   = $('shortcut-text')
 const recentSearch   = $('recent-search')
 
 const SAVE_BUTTON_DEFAULT_TEXT = 'Save this page'
@@ -126,6 +128,12 @@ async function init() {
 
   // Inicializar banner como oculto hasta confirmar reminders
   reminderBanner.hidden = true
+
+  // Set correct shortcut in banner based on OS
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  if (shortcutText) {
+    shortcutText.innerHTML = `Quick save: <kbd>${isMac ? 'Cmd+Shift+S' : 'Ctrl+Shift+S'}</kbd>`
+  }
 
   await refreshTagPresetsFromServer()
   renderTagPresetButtons()
@@ -535,7 +543,7 @@ function showDeleteConfirm(li, id) {
   li.appendChild(confirm)
 }
 
-function showEditForm(li, bm) {
+async function showEditForm(li, bm) {
   if (li.querySelector('.recent-edit-form')) return
 
   li.classList.add('recent-item--editing')
@@ -545,10 +553,67 @@ function showEditForm(li, bm) {
 
   const form = document.createElement('div')
   form.className = 'recent-edit-form'
+
+  // Extract domain from URL for favicon
+  const domain = (() => {
+    try { return new URL(bm.url).hostname }
+    catch { return '' }
+  })()
+
   form.innerHTML = `
-    <input class="edit-title-input" type="text" maxlength="500" aria-label="Edit bookmark title" />
-    <input class="edit-icon-input" type="text" maxlength="10" placeholder="icon" aria-label="Edit bookmark icon" />
-    <input class="edit-reminder-input" type="datetime-local" aria-label="Edit reminder date" />
+    <div class="edit-page-info">
+      <img class="edit-favicon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="" width="16" height="16" />
+      <div class="edit-page-text">
+        <p class="edit-page-url" title="${bm.url}">${domain}</p>
+      </div>
+    </div>
+
+    <div class="edit-field">
+      <label class="edit-label">Path name</label>
+      <input class="edit-title-input" type="text" maxlength="500" aria-label="Edit bookmark title" />
+    </div>
+
+    <div class="edit-field">
+      <label class="edit-label">Icon</label>
+      <div class="edit-icon-picker">
+        <div class="edit-icon-preview" aria-live="polite">
+          <img class="edit-icon-favicon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="" width="16" height="16" />
+          <span class="edit-icon-value" hidden></span>
+        </div>
+        <button type="button" class="edit-icon-btn" aria-label="Edit icon" title="Edit icon">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </button>
+      </div>
+      <div class="edit-icon-editor" hidden>
+        <div class="edit-icon-presets" role="listbox" aria-label="Preset icons"></div>
+        <div class="edit-icon-editor-row">
+          <input class="edit-icon-input" type="text" maxlength="10" placeholder="custom" autocomplete="off" aria-label="Custom icon" />
+          <button type="button" class="edit-btn-clear-icon">Reset</button>
+          <button type="button" class="edit-btn-close-icon">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-field">
+      <label class="edit-label">Tags</label>
+      <div class="edit-tag-presets" role="listbox" aria-label="Preset tags"></div>
+      <input class="edit-tags-input" type="text" maxlength="250" placeholder="work, tools, reading" autocomplete="off" aria-label="Bookmark tags" />
+    </div>
+
+    <div class="edit-field">
+      <label class="edit-label">Save to folder</label>
+      <select class="edit-folder-select" aria-label="Edit bookmark folder">
+        <option value="">No folder</option>
+      </select>
+    </div>
+
+    <div class="edit-field">
+      <label class="edit-label">Reminder (optional)</label>
+      <input class="edit-reminder-input" type="datetime-local" aria-label="Edit reminder date" title="Set a reminder for this bookmark" />
+    </div>
+
     <div class="recent-edit-buttons">
       <button class="edit-save" aria-label="Save changes">Save</button>
       <button class="edit-cancel" aria-label="Cancel edit">Cancel</button>
@@ -557,10 +622,114 @@ function showEditForm(li, bm) {
 
   const titleInput = form.querySelector('.edit-title-input')
   const iconInput = form.querySelector('.edit-icon-input')
+  const tagsInput = form.querySelector('.edit-tags-input')
+  const folderSelect = form.querySelector('.edit-folder-select')
   const reminderInput = form.querySelector('.edit-reminder-input')
+  const iconEditor = form.querySelector('.edit-icon-editor')
+  const iconPreview = form.querySelector('.edit-icon-preview')
+  const iconValue = form.querySelector('.edit-icon-value')
+  const iconFavicon = form.querySelector('.edit-icon-favicon')
+
+  // Set initial values
   titleInput.value = bm.title ?? ''
   iconInput.value = bm.icon ?? ''
+  tagsInput.value = bm.tags?.join(', ') ?? ''
   reminderInput.value = bm.reminderDate ? new Date(bm.reminderDate).toISOString().slice(0, 16) : ''
+
+  // Update icon preview
+  function updateIconPreview() {
+    const custom = iconInput.value.trim()
+    if (custom) {
+      iconValue.textContent = custom
+      iconValue.hidden = false
+      iconFavicon.hidden = true
+    } else {
+      iconValue.hidden = true
+      iconFavicon.hidden = false
+    }
+  }
+
+  // Populate folder options
+  const { folders = [] } = await chrome.storage.local.get('folders')
+  folders.forEach(folder => {
+    const option = document.createElement('option')
+    option.value = folder.id
+    option.textContent = folder.name
+    option.selected = folder.id === bm.folderId
+    folderSelect.appendChild(option)
+  })
+
+  // Render icon presets
+  const allPresetIcons = Array.from(new Set([...PRESET_ICONS, ...syncedIcons]))
+  const iconPresetsContainer = form.querySelector('.edit-icon-presets')
+  iconPresetsContainer.innerHTML = allPresetIcons.map((icon) => (
+    `<button type="button" class="icon-preset" data-icon="${icon}" aria-label="Choose icon ${icon}">${icon}</button>`
+  )).join('')
+
+  iconPresetsContainer.querySelectorAll('.icon-preset').forEach((button) => {
+    button.addEventListener('click', (e) => {
+      e.stopPropagation()
+      iconInput.value = button.dataset.icon ?? ''
+      updateIconPreview()
+    })
+  })
+
+  // Render tag presets
+  const allPresetTags = Array.from(new Set([...PRESET_TAGS, ...syncedTags]))
+  const tagPresetsContainer = form.querySelector('.edit-tag-presets')
+  const selectedTags = new Set((bm.tags ?? []).map(t => t.toLowerCase()))
+
+  function renderTagPresets() {
+    tagPresetsContainer.innerHTML = allPresetTags.map((tag) => {
+      const isSelected = selectedTags.has(tag.toLowerCase())
+      return `<button type="button" class="tag-preset${isSelected ? ' tag-preset--active' : ''}" data-tag="${tag}" aria-label="Toggle tag ${tag}" aria-pressed="${isSelected}">${tag}</button>`
+    }).join('')
+
+    tagPresetsContainer.querySelectorAll('.tag-preset').forEach((button) => {
+      button.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const tag = button.dataset.tag
+        if (selectedTags.has(tag)) {
+          selectedTags.delete(tag)
+        } else {
+          selectedTags.add(tag)
+        }
+        renderTagPresets()
+        tagsInput.value = Array.from(selectedTags).join(', ')
+      })
+    })
+  }
+
+  renderTagPresets()
+
+  // Icon editor handlers
+  form.querySelector('.edit-icon-btn').addEventListener('click', (e) => {
+    e.stopPropagation()
+    iconEditor.hidden = !iconEditor.hidden
+    if (!iconEditor.hidden) iconInput.focus()
+  })
+
+  form.querySelector('.edit-btn-clear-icon').addEventListener('click', (e) => {
+    e.stopPropagation()
+    iconInput.value = ''
+    updateIconPreview()
+  })
+
+  form.querySelector('.edit-btn-close-icon').addEventListener('click', (e) => {
+    e.stopPropagation()
+    iconEditor.hidden = true
+  })
+
+  iconInput.addEventListener('input', updateIconPreview)
+  updateIconPreview()
+
+  // Tags input manual sync
+  tagsInput.addEventListener('input', () => {
+    const manualTags = tagsInput.value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+    selectedTags.clear()
+    manualTags.forEach(tag => selectedTags.add(tag))
+    renderTagPresets()
+  })
 
   const closeForm = () => {
     form.remove()
@@ -577,6 +746,11 @@ function showEditForm(li, bm) {
   const saveEdit = async () => {
     const nextTitle = titleInput.value.trim()
     const nextIcon = iconInput.value.trim()
+    // Get tags from both presets and manual input
+    const presetTags = Array.from(selectedTags)
+    const manualTags = tagsInput.value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+    const allTags = Array.from(new Set([...presetTags, ...manualTags]))
+    const nextFolderId = folderSelect.value || null
     const nextReminderDate = reminderInput.value ? new Date(reminderInput.value).toISOString() : null
 
     if (!nextTitle) {
@@ -590,6 +764,8 @@ function showEditForm(li, bm) {
       {
         title: nextTitle,
         icon: nextIcon || null,
+        tags: allTags,
+        folderId: nextFolderId,
         reminderDate: nextReminderDate
       },
       refreshToken,

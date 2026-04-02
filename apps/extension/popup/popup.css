@@ -334,8 +334,6 @@ body {
   cursor: pointer;
 }
 
-.recent-item:hover { background: var(--color-bg-secondary); }
-
 .recent-item a {
   flex: 1;
   min-width: 0;
@@ -398,11 +396,29 @@ body {
 .recent-delete:hover { color: var(--color-error); background: var(--color-error-bg); }
 .recent-edit:hover { color: var(--color-brand); background: var(--color-brand-bg); }
 
+.recent-item--editing {
+  justify-content: center;
+  padding: 0 0 10px;;
+  outline: solid 1px var(--color-brand);
+}
+
 .recent-item--editing .recent-edit {
   display: none;
 }
 
+.recent-item--editing a {
+  display: none;
+}
+
+.recent-item--editing .recent-actions {
+  display: none;
+}
+
 .recent-item--editing .recent-delete {
+  display: none;
+}
+
+.recent-item--editing .favicon {
   display: none;
 }
 
@@ -506,6 +522,48 @@ body {
 }
 .reminder-link:hover { text-decoration: underline; }
 
+/* ── Shortcut banner ── */
+.shortcut-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-left: none;
+  border-right: none;
+  font-size: 12px;
+  color: #1d4ed8;
+  margin-bottom: 12px;
+}
+
+.dark .shortcut-banner {
+  background: #1e3a8a22;
+  border-color: #1e40af33;
+  color: #93c5fd;
+}
+
+.shortcut-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.shortcut-text {
+  flex: 1;
+  font-weight: 500;
+}
+
+kbd {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 /* ── Reminder badge on recent items ── */
 .recent-item--reminder { background: #fffbeb; border-radius: var(--radius-sm); }
 .dark .recent-item--reminder { background: #1c120044; }
@@ -555,12 +613,13 @@ body {
   flex-direction: column;
   gap: 6px;
   margin-top: 6px;
-  margin-left: 20px;
   width: calc(100% - 20px);
 }
 
 .edit-title-input,
 .edit-icon-input,
+.edit-tags-input,
+.edit-folder-select,
 .edit-reminder-input {
   width: 100%;
   padding: 5px 8px;
@@ -573,6 +632,157 @@ body {
 
 .edit-icon-input {
   width: 90px;
+}
+
+.edit-folder-select {
+  appearance: auto;
+  cursor: pointer;
+}
+
+/* ── Edit form expanded styles ── */
+.edit-page-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 0;
+}
+
+.edit-favicon {
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.edit-page-text {
+  min-width: 0;
+}
+
+.edit-page-url {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+  margin: 0;
+}
+
+.edit-field {
+  margin-bottom: 8px;
+}
+
+.edit-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.edit-icon-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.edit-icon-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+  position: relative;
+}
+
+.edit-icon-value {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.edit-icon-favicon {
+  border-radius: 2px;
+}
+
+.edit-icon-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+}
+
+.edit-icon-btn:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.edit-icon-editor {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+}
+
+.edit-icon-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.edit-icon-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-icon-input {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 11px;
+}
+
+.edit-btn-clear-icon,
+.edit-btn-close-icon {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 3px 6px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.edit-btn-clear-icon:hover,
+.edit-btn-close-icon:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.edit-tag-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 
 .recent-edit-buttons {
