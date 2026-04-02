@@ -16,13 +16,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Validate that the request comes from our own app
-  const origin = request.headers.get('origin') ?? ''
-  const referer = request.headers.get('referer') ?? ''
-  const appUrl = process.env.AUTH_URL ?? ''
-  const isFromApp = origin.includes(appUrl) || referer.includes(appUrl)
-  if (!isFromApp && process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Validate that the request comes from our own app using exact origin matching
+  if (process.env.NODE_ENV === 'production') {
+    const appUrl = process.env.AUTH_URL ?? ''
+    let appOrigin: string
+    try {
+      appOrigin = new URL(appUrl).origin
+    } catch {
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+    }
+    const requestOrigin = request.headers.get('origin') ?? ''
+    const referer = request.headers.get('referer') ?? ''
+    const refererOrigin = referer ? (() => { try { return new URL(referer).origin } catch { return '' } })() : ''
+    if (requestOrigin !== appOrigin && refererOrigin !== appOrigin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const refreshTokenExpiresAt = new Date()

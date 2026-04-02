@@ -4,6 +4,14 @@ import { auth, signIn } from '@/lib/auth'
 
 export const metadata: Metadata = { title: 'Sign in' }
 
+/** Only allow same-origin redirects to prevent open-redirect attacks. */
+function sanitizeCallbackUrl(raw: string | undefined): string {
+  if (!raw) return '/dashboard'
+  // Must start with / but NOT // (protocol-relative) or /\ (IE bypass)
+  if (/^\/[^/\\]/.test(raw)) return raw
+  return '/dashboard'
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -11,9 +19,10 @@ export default async function LoginPage({
 }) {
   const session = await auth()
   const params = await searchParams
+  const callbackUrl = sanitizeCallbackUrl(params.callbackUrl)
 
   if (session) {
-    redirect(params.callbackUrl ?? '/dashboard')
+    redirect(callbackUrl)
   }
 
   const isFromExtension = params.from === 'extension'
@@ -54,9 +63,7 @@ export default async function LoginPage({
           <form
             action={async () => {
               'use server'
-              await signIn('google', {
-                redirectTo: params.callbackUrl ?? '/dashboard',
-              })
+              await signIn('google', { redirectTo: callbackUrl })
             }}
           >
             <button type="submit" className="btn-primary w-full py-2.5">
@@ -70,9 +77,7 @@ export default async function LoginPage({
               className="mt-3"
               action={async () => {
                 'use server'
-                await signIn('microsoft-entra-id', {
-                  redirectTo: params.callbackUrl ?? '/dashboard',
-                })
+                await signIn('microsoft-entra-id', { redirectTo: callbackUrl })
               }}
             >
               <button

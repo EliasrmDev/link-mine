@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, badRequest, notFound, forbidden } from '@/lib/api'
+import { requireAuth, badRequest, notFound, forbidden, normalizeTags } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
 
 const UpdateSchema = z.object({
@@ -12,21 +12,6 @@ const UpdateSchema = z.object({
   reminderDate: z.string().datetime().nullable().optional(),
   folderId: z.string().cuid().nullable().optional(),
 })
-
-function normalizeTags(tags: string[]): string[] {
-  const seen = new Set<string>()
-  const normalized: string[] = []
-
-  for (const raw of tags) {
-    const value = raw.trim().toLowerCase()
-    if (!value) continue
-    if (seen.has(value)) continue
-    seen.add(value)
-    normalized.push(value)
-  }
-
-  return normalized
-}
 
 // GET /api/bookmarks/:id
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

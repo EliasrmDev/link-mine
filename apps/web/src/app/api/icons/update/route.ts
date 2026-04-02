@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireAuth } from '@/lib/api'
+import { requireAuth, badRequest } from '@/lib/api'
+
+const BodySchema = z.object({
+  oldIcon: z.string().min(1).max(10),
+  newIcon: z.string().min(1).max(10),
+})
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request)
   if ('error' in auth) return auth.error
 
   try {
-    const body = await request.json()
-    const { oldIcon, newIcon } = body
+    const body = await request.json().catch(() => null)
+    if (!body) return badRequest('Invalid JSON body')
 
-    if (!oldIcon || !newIcon) {
-      return new NextResponse('Old icon and new icon are required', { status: 400 })
-    }
+    const parsed = BodySchema.safeParse(body)
+    if (!parsed.success) return badRequest(parsed.error.issues[0].message)
+
+    const { oldIcon, newIcon } = parsed.data
 
     // Update all bookmarks that have the old icon
     const result = await prisma.bookmark.updateMany({
@@ -26,6 +33,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, updated: result.count })
   } catch (error) {
     console.error('Error updating icon:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

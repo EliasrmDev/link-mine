@@ -11,26 +11,15 @@ export async function GET(request: NextRequest) {
   const withCounts = url.searchParams.get('counts') === 'true'
 
   if (withCounts) {
-    // Get all bookmarks to count tags
-    const bookmarks = await prisma.bookmark.findMany({
-      where: { userId: auth.userId },
-      select: { tags: true },
-    })
-
-    // Count occurrences of each tag
-    const tagCounts = new Map<string, number>()
-
-    bookmarks.forEach(bookmark => {
-      bookmark.tags.forEach(tag => {
-        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1)
-      })
-    })
-
-    // Convert to array and sort by count (descending) then by name
-    const tags = Array.from(tagCounts.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-
+    // Aggregate directly in Postgres — no full table scan in Node.js
+    const rows = await prisma.$queryRaw<Array<{ name: string; count: bigint }>>`
+      SELECT unnest("tags") AS name, count(*) AS count
+      FROM "public"."Bookmark"
+      WHERE "userId" = ${auth.userId}
+      GROUP BY name
+      ORDER BY count DESC, name ASC
+    `
+    const tags = rows.map((r) => ({ name: r.name, count: Number(r.count) }))
     return NextResponse.json(tags)
   } else {
     // Original behavior - just return tag names from presets

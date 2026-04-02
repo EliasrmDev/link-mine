@@ -69,3 +69,16 @@ export const notFound = (resource = 'Resource') =>
 /** Standard 403 response */
 export const forbidden = () =>
   NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+/** Deduplicate and lowercase tags. Shared by bookmark create/update routes. */
+export function normalizeTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const raw of tags) {
+    const value = raw.trim().toLowerCase()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    normalized.push(value)
+  }
+  return normalized
+}

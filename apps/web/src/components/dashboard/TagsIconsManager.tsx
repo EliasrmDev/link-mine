@@ -36,77 +36,46 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Fetch tag counts and icon counts
-    fetchTagCounts()
-    fetchIconCounts()
+    fetchPresetsAndCounts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTags, iconsInUse])
 
-  const fetchTagCounts = async () => {
+  const fetchPresetsAndCounts = async () => {
     try {
-      // Get all tag presets
-      const presetsResponse = await fetch('/api/presets')
-      const presets = presetsResponse.ok ? await presetsResponse.json() : { tags: [] }
+      // Single parallel fetch — no duplicate /api/presets calls
+      const [presetsRes, countsRes] = await Promise.all([
+        fetch('/api/presets'),
+        fetch('/api/tags?counts=true'),
+      ])
 
-      // Get tag usage counts
-      const countsResponse = await fetch('/api/tags?counts=true')
-      const usageCounts = countsResponse.ok ? await countsResponse.json() : []
+      const presets = presetsRes.ok ? await presetsRes.json() : { tags: [], icons: [] }
+      const usageCounts: { name: string; count: number }[] = countsRes.ok ? await countsRes.json() : []
 
-      // Create a map of usage counts
-      const countMap = new Map<string, number>()
-      usageCounts.forEach((tag: { name: string; count: number }) => {
-        countMap.set(tag.name, tag.count)
-      })
-
-      // Combine all preset tags with their usage counts
-      const allTags = presets.tags.map((tagName: string) => ({
-        name: tagName,
-        count: countMap.get(tagName) || 0
+      // Tags
+      const countMap = new Map<string, number>(usageCounts.map((t) => [t.name, t.count]))
+      const tagList: Tag[] = (presets.tags as string[]).map((name) => ({
+        name,
+        count: countMap.get(name) ?? 0,
       }))
+      tagList.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      setTags(tagList)
 
-      // Sort by count (descending) then by name (ascending)
-      allTags.sort((a: { name: string; count: number }, b: { name: string; count: number }) => b.count - a.count || a.name.localeCompare(b.name))
-
-      setTags(allTags)
-    } catch (error) {
-      console.error('Error fetching tag counts:', error)
-      // Fallback: use allTags with count 0
-      setTags(allTags.map(tag => ({ name: tag, count: 0 })))
-    }
-  }
-
-  const fetchIconCounts = async () => {
-    try {
-      // Get all icon presets
-      const presetsResponse = await fetch('/api/presets')
-      const presets = presetsResponse.ok ? await presetsResponse.json() : { icons: [] }
-
-      // Create a map of usage counts from iconsInUse
-      const countMap = new Map<string, number>()
-      iconsInUse.forEach(icon => {
-        if (icon) {
-          countMap.set(icon, (countMap.get(icon) || 0) + 1)
-        }
+      // Icons — count from iconsInUse prop (no extra API call needed)
+      const iconCountMap = new Map<string, number>()
+      iconsInUse.forEach((icon) => {
+        if (icon) iconCountMap.set(icon, (iconCountMap.get(icon) ?? 0) + 1)
       })
-
-      // Combine all preset icons with their usage counts
-      const allIcons = presets.icons.map((icon: string) => ({
+      const iconList: IconData[] = (presets.icons as string[]).map((icon) => ({
         icon,
-        count: countMap.get(icon) || 0
+        count: iconCountMap.get(icon) ?? 0,
       }))
-
-      // Sort by count (descending) then by icon (ascending)
-      allIcons.sort((a: { icon: string; count: number }, b: { icon: string; count: number }) => b.count - a.count || a.icon.localeCompare(b.icon))
-
-      setIcons(allIcons)
+      iconList.sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon))
+      setIcons(iconList)
     } catch (error) {
-      console.error('Error processing icons:', error)
-      // Fallback
+      console.error('Error fetching presets:', error)
+      setTags(allTags.map((tag) => ({ name: tag, count: 0 })))
       const uniqueIcons = [...new Set(iconsInUse.filter(Boolean))]
-      const iconData = uniqueIcons.map(icon => ({
-        icon,
-        count: iconsInUse.filter(i => i === icon).length
-      }))
-      setIcons(iconData)
+      setIcons(uniqueIcons.map((icon) => ({ icon, count: iconsInUse.filter((i) => i === icon).length })))
     }
   }
 
@@ -116,7 +85,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onTagRenamed(editingTag.old, editingTag.new.trim())
-      await fetchTagCounts()
+      await fetchPresetsAndCounts()
       setEditingTag(null)
     } catch (error) {
       console.error('Error renaming tag:', error)
@@ -130,7 +99,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onTagDeleted(deleteConfirm.name)
-      await fetchTagCounts()
+      await fetchPresetsAndCounts()
       setDeleteConfirm(null)
     } catch (error) {
       console.error('Error deleting tag:', error)
@@ -144,7 +113,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onIconUpdated(editingIcon.old, editingIcon.new.trim())
-      await fetchIconCounts()
+      await fetchPresetsAndCounts()
       setEditingIcon(null)
     } catch (error) {
       console.error('Error updating icon:', error)
@@ -158,7 +127,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onTagCreated(creatingTag.trim())
-      await fetchTagCounts()
+      await fetchPresetsAndCounts()
       setCreatingTag('')
       setShowCreateModal(null)
     } catch (error) {
@@ -173,7 +142,7 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
     setLoading(true)
     try {
       await onIconCreated(creatingIcon.trim())
-      await fetchIconCounts()
+      await fetchPresetsAndCounts()
       setCreatingIcon('')
       setShowCreateModal(null)
     } catch (error) {

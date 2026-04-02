@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireAuth, badRequest } from '@/lib/api'
+import { requireAuth, badRequest, normalizeTags } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
 
 const CreateSchema = z.object({
@@ -24,21 +24,6 @@ const QuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
 })
-
-function normalizeTags(tags: string[]): string[] {
-  const seen = new Set<string>()
-  const normalized: string[] = []
-
-  for (const raw of tags) {
-    const value = raw.trim().toLowerCase()
-    if (!value) continue
-    if (seen.has(value)) continue
-    seen.add(value)
-    normalized.push(value)
-  }
-
-  return normalized
-}
 
 // GET /api/bookmarks
 export async function GET(request: NextRequest) {
