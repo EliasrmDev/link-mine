@@ -68,3 +68,52 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ tags, icons })
 }
+
+export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request)
+  if ('error' in auth) return auth.error
+
+  try {
+    const body = await request.json()
+    const { type, value } = body
+
+    if (!type || !value) {
+      return new NextResponse('Type and value are required', { status: 400 })
+    }
+
+    if (type !== 'TAG' && type !== 'ICON') {
+      return new NextResponse('Type must be TAG or ICON', { status: 400 })
+    }
+
+    const normalizedValue = type === 'TAG' ? value.toLowerCase().trim() : value.trim()
+
+    // Check if preset already exists
+    const existing = await prisma.userPreset.findUnique({
+      where: {
+        userId_type_value: {
+          userId: auth.userId,
+          type: type,
+          value: normalizedValue
+        }
+      }
+    })
+
+    if (existing) {
+      return new NextResponse('Preset already exists', { status: 409 })
+    }
+
+    // Create new preset
+    const preset = await prisma.userPreset.create({
+      data: {
+        userId: auth.userId,
+        type: type,
+        value: normalizedValue
+      }
+    })
+
+    return NextResponse.json({ success: true, preset })
+  } catch (error) {
+    console.error('Error creating preset:', error)
+    return new NextResponse('Internal Server Error', { status: 500 })
+  }
+}

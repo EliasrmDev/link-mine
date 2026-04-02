@@ -8,6 +8,7 @@ import { BookmarkForm } from './BookmarkForm'
 import { FolderForm } from './FolderForm'
 import { TopBar } from './TopBar'
 import { FilterBar } from './FilterBar'
+import { TagsIconsManager } from './TagsIconsManager'
 import { ConfirmModal } from '../ui/ConfirmModal'
 
 const FILTERS_STORAGE_KEY = 'linkmine_filters'
@@ -68,6 +69,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<BookmarkFilters>(DEFAULT_FILTERS)
   const [loading, setLoading] = useState(false)
+  const [activeView, setActiveView] = useState<'bookmarks' | 'tags-icons'>('bookmarks')
 
   // Modal state
   const [bookmarkForm, setBookmarkForm] = useState<{
@@ -289,6 +291,88 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     if (selectedFolderId === id) setSelectedFolderId('all')
   }
 
+  // Tags and Icons Management
+  const handleTagRenamed = async (oldName: string, newName: string) => {
+    const response = await fetch('/api/tags/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldTag: oldName, newTag: newName }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to rename tag')
+    }
+
+    // Refresh bookmarks to show updated tags
+    await refreshFromServer()
+  }
+
+  const handleTagDeleted = async (tagName: string) => {
+    const response = await fetch('/api/tags/delete', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag: tagName }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to delete tag')
+    }
+
+    // Refresh bookmarks to show updated tags
+    await refreshFromServer()
+  }
+
+  const handleIconUpdated = async (oldIcon: string, newIcon: string) => {
+    const response = await fetch('/api/icons/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldIcon, newIcon }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to update icon')
+    }
+
+    // Refresh bookmarks to show updated icons
+    await refreshFromServer()
+  }
+
+  const handleTagCreated = async (tagName: string) => {
+    const response = await fetch('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'TAG', value: tagName }),
+    })
+
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error('Tag already exists')
+      }
+      throw new Error('Failed to create tag')
+    }
+
+    // Refresh data to show new tag
+    await refreshFromServer()
+  }
+
+  const handleIconCreated = async (icon: string) => {
+    const response = await fetch('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ICON', value: icon }),
+    })
+
+    if (!response.ok) {
+      if (response.status === 409) {
+        throw new Error('Icon already exists')
+      }
+      throw new Error('Failed to create icon')
+    }
+
+  // Refresh data to show new icon
+    await refreshFromServer()
+  }
+
   // Show old-links section only when not actively filtering/searching
   const showOldLinks = !query && !(filters.tags?.length) && !filters.icon && !filters.hasReminder
 
@@ -312,26 +396,42 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           query={query}
           onSearch={handleSearch}
           onAddBookmark={() => setBookmarkForm({ open: true })}
+          activeView={activeView}
+          onViewChange={setActiveView}
         />
 
-        <FilterBar
-          filters={filters}
-          allTags={allTags}
-          iconsInUse={iconsInUse}
-          onChange={handleFiltersChange}
-          onReset={handleFiltersReset}
-        />
+        {activeView === 'bookmarks' && (
+          <FilterBar
+            filters={filters}
+            allTags={allTags}
+            iconsInUse={iconsInUse}
+            onChange={handleFiltersChange}
+            onReset={handleFiltersReset}
+          />
+        )}
 
         <main className="flex-1 overflow-y-auto p-6" id="main-content">
-          <BookmarkGrid
-            bookmarks={bookmarks}
-            total={total}
-            loading={loading}
-            folders={folders}
-            onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
-            onDelete={handleDeleteBookmark}
-            showOldLinks={showOldLinks}
-          />
+          {activeView === 'bookmarks' ? (
+            <BookmarkGrid
+              bookmarks={bookmarks}
+              total={total}
+              loading={loading}
+              folders={folders}
+              onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
+              onDelete={handleDeleteBookmark}
+              showOldLinks={showOldLinks}
+            />
+          ) : (
+            <TagsIconsManager
+              allTags={allTags}
+              iconsInUse={iconsInUse}
+              onTagRenamed={handleTagRenamed}
+              onTagDeleted={handleTagDeleted}
+              onIconUpdated={handleIconUpdated}
+              onTagCreated={handleTagCreated}
+              onIconCreated={handleIconCreated}
+            />
+          )}
         </main>
       </div>
 
