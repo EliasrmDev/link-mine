@@ -9,7 +9,9 @@ export default async function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <span className="text-xl font-bold text-brand-400">LinkMine</span>
+          <Link href="/">
+            <span className="text-xl font-bold text-brand-400">LinkMine</span>
+          </Link>
           <nav className="flex items-center gap-3">
             {session ? (
               <Link href="/dashboard" className="btn-primary">
@@ -165,7 +167,7 @@ const STEPS = [
     description: 'One click from the Chrome Web Store. No signup required to start saving.',
   },
   {
-    title: 'Sign in with Google',
+    title: 'Sign in with Google/Microsoft',
     description: 'Authenticate once to enable sync. We only ask for your email.',
   },
   {

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import type { Folder } from '@linkmine/shared'
 
@@ -32,7 +33,9 @@ export function Sidebar({
     >
       {/* Logo */}
       <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <span className="text-lg font-bold text-brand-400">LinkMine</span>
+        <Link href="/">
+          <span className="text-lg font-bold text-brand-400">LinkMine</span>
+        </Link>
       </div>
 
       {/* Navigation */}
