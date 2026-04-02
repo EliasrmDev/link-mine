@@ -329,7 +329,6 @@ export function TagsIconsManager({ allTags, iconsInUse, onTagRenamed, onTagDelet
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{iconData.icon}</span>
                       <div className="text-sm">
-                        <div className="font-medium">"{iconData.icon}"</div>
                         <div className="text-gray-500">
                           {iconData.count > 0
                             ? `${iconData.count} bookmark${iconData.count !== 1 ? 's' : ''}`
