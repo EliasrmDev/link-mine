@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { Sun, Moon } from 'lucide-react'
+import { useTheme } from '../ThemeProvider'
 import type { Folder } from '@linkmine/shared'
 
 interface Props {
@@ -23,16 +25,17 @@ export function Sidebar({
   onEditFolder,
   onDeleteFolder,
 }: Props) {
+  const { toggle } = useTheme()
   const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
   const allBookmarksCount = totalBookmarksInTree + unsortedCount
 
   return (
     <nav
       aria-label="Folders"
-      className="flex w-60 shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+      className="flex w-full lg:w-64 shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 h-full"
     >
       {/* Logo */}
-      <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+      <div className="px-4 lg:px-5 py-4 border-b border-gray-100 dark:border-gray-800">
         <Link href="/">
           <span className="text-lg font-bold text-brand-400">LinkMine</span>
         </Link>
@@ -110,8 +113,20 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Export */}
-      <div className="border-t border-gray-100 px-3 py-3 dark:border-gray-800">
+      {/* Footer with theme toggle and export */}
+      <div className="border-t border-gray-100 px-3 py-3 dark:border-gray-800 space-y-1">
+        {/* Theme toggle */}
+        <button
+          onClick={toggle}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+        >
+          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute left-5 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="dark:hidden">Light mode</span>
+          <span className="hidden dark:block">Dark mode</span>
+        </button>
+
+        {/* Export */}
         <a
           href="/api/bookmarks/export"
           download

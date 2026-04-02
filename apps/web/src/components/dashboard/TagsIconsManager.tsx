@@ -191,16 +191,16 @@ export function TagsIconsManager({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'tags' ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Manage all your bookmark tags. Create presets for quick access when adding bookmarks.
               </div>
               <button
                 onClick={() => setShowCreateModal({ type: 'tag' })}
-                className="btn-primary text-sm"
+                className="btn-primary text-sm whitespace-nowrap"
                 disabled={loading}
               >
                 <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -231,7 +231,7 @@ export function TagsIconsManager({
                 {tags.map((tag) => (
                   <div
                     key={tag.name}
-                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
                   >
                     <div className="flex items-center gap-3">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300">
@@ -244,17 +244,17 @@ export function TagsIconsManager({
                         }
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2">
                       <button
                         onClick={() => setEditingTag({ old: tag.name, new: tag.name })}
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400"
                         disabled={loading}
                       >
                         Rename
                       </button>
                       <button
                         onClick={() => setDeleteConfirm({ type: 'tag', name: tag.name })}
-                        className="text-xs text-red-600 hover:text-red-800 dark:text-red-400"
+                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-red-600 dark:text-red-400"
                         disabled={loading}
                       >
                         Delete
@@ -267,13 +267,13 @@ export function TagsIconsManager({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Manage all your bookmark icons. Create presets for quick access when adding bookmarks.
               </div>
               <button
                 onClick={() => setShowCreateModal({ type: 'icon' })}
-                className="btn-primary text-sm"
+                className="btn-primary text-sm whitespace-nowrap"
                 disabled={loading}
               >
                 <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -304,7 +304,7 @@ export function TagsIconsManager({
                 {icons.map((iconData) => (
                   <div
                     key={iconData.icon}
-                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{iconData.icon}</span>
@@ -319,7 +319,7 @@ export function TagsIconsManager({
                     </div>
                     <button
                       onClick={() => setEditingIcon({ old: iconData.icon, new: iconData.icon })}
-                      className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                      className="btn-ghost px-3 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400 shrink-0"
                       disabled={loading}
                     >
                       Update

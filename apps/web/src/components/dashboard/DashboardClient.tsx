@@ -72,6 +72,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   const [filters, setFilters] = useState<BookmarkFilters>(DEFAULT_FILTERS)
   const [loading, setLoading] = useState(false)
   const [activeView, setActiveView] = useState<'bookmarks' | 'tags-icons'>('bookmarks')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Modal state
   const [bookmarkForm, setBookmarkForm] = useState<{
@@ -139,7 +140,6 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
         if (f.tags?.length) params.set('tags', f.tags.join(','))
         if (f.icon) params.set('icon', f.icon)
-        if (f.hasReminder) params.set('hasReminder', 'true')
         if (f.sortBy) params.set('sortBy', f.sortBy)
         if (f.sortDir) params.set('sortDir', f.sortDir)
 
@@ -375,24 +375,74 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     await refreshFromServer()
   }
 
+  // Get current section name for mobile label
+  const getCurrentSectionName = (): string => {
+    if (selectedFolderId === 'all') return 'All bookmarks'
+    if (selectedFolderId === 'none') return 'Unsorted'
+    if (selectedFolderId) {
+      const findFolder = (folders: Folder[], id: string): Folder | null => {
+        for (const folder of folders) {
+          if (folder.id === id) return folder
+          if (folder.children) {
+            const found = findFolder(folder.children, id)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const folder = findFolder(folders, selectedFolderId)
+      return folder ? `Folder: ${folder.name}` : 'Unknown folder'
+    }
+    return 'All bookmarks'
+  }
+
   // Show old-links section only when not actively filtering/searching
-  const showOldLinks = !query && !(filters.tags?.length) && !filters.icon && !filters.hasReminder
+  const showOldLinks = !query && !(filters.tags?.length) && !filters.icon
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-black bg-opacity-50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
-      <Sidebar
-        folders={folders}
-        unsortedCount={unsortedCount}
-        selectedFolderId={selectedFolderId}
-        onSelectFolder={handleFolderSelect}
-        onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
-        onEditFolder={(folder) => setFolderForm({ open: true, folder })}
-        onDeleteFolder={handleDeleteFolder}
-      />
+      <div className={`${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } fixed inset-y-0 left-0 z-30 w-full lg:w-64 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 h-full`}>
+        <div className="relative h-full">
+          {/* Close button for mobile */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="absolute top-4 right-4 z-40 lg:hidden p-2 rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            aria-label="Close sidebar"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <Sidebar
+            folders={folders}
+            unsortedCount={unsortedCount}
+            selectedFolderId={selectedFolderId}
+            onSelectFolder={(id) => {
+              handleFolderSelect(id)
+              setSidebarOpen(false) // Close sidebar on mobile after selection
+            }}
+            onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
+            onEditFolder={(folder) => setFolderForm({ open: true, folder })}
+            onDeleteFolder={handleDeleteFolder}
+          />
+        </div>
+      </div>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden lg:ml-0">
         <TopBar
           user={user}
           query={query}
@@ -400,7 +450,15 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           onAddBookmark={() => setBookmarkForm({ open: true })}
           activeView={activeView}
           onViewChange={setActiveView}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
+
+        {/* Mobile section indicator */}
+        <div className="lg:hidden bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+            {getCurrentSectionName()}
+          </span>
+        </div>
 
         {activeView === 'bookmarks' && (
           <FilterBar

@@ -9,16 +9,15 @@ interface Props {
   iconsInUse: string[]
   onChange: (f: BookmarkFilters) => void
   onReset: () => void
+  onClose?: () => void
 }
 
-export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: Props) {
+export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset, onClose }: Props) {
   const [open, setOpen] = useState(false)
 
   const activeCount = [
     (filters.tags?.length ?? 0) > 0,
     !!filters.icon,
-    !!filters.hasReminder,
-    !!filters.sortBy && filters.sortBy !== 'createdAt',
   ].filter(Boolean).length
 
   function toggleTag(tag: string) {
@@ -31,22 +30,10 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: P
     onChange({ ...filters, icon: filters.icon === icon ? undefined : icon })
   }
 
-  function setSortBy(sortBy: BookmarkFilters['sortBy']) {
-    onChange({ ...filters, sortBy })
-  }
-
-  function toggleSortDir() {
-    onChange({ ...filters, sortDir: filters.sortDir === 'asc' ? 'desc' : 'asc' })
-  }
-
-  function toggleReminder() {
-    onChange({ ...filters, hasReminder: !filters.hasReminder })
-  }
-
   return (
     <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
       {/* Always-visible toolbar row */}
-      <div className="flex items-center gap-2 px-6 py-2">
+      <div className="flex items-center gap-2 px-4 sm:px-6 py-2">
         {/* Filter toggle */}
         <button
           onClick={() => setOpen((o) => !o)}
@@ -65,93 +52,79 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: P
           )}
         </button>
 
-        {/* Active filter pills */}
-        <div className="flex flex-1 flex-wrap gap-1">
-          {(filters.tags ?? []).map((tag) => (
-            <button
-              key={tag}
-              onClick={() => toggleTag(tag)}
-              className="flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 hover:bg-brand-100 dark:bg-brand-900/30 dark:text-brand-300"
-            >
-              {tag}
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          ))}
-          {filters.icon && (
-            <button
-              onClick={() => toggleIcon(filters.icon!)}
-              className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300"
-            >
-              {filters.icon} ×
-            </button>
-          )}
-          {filters.hasReminder && (
-            <button
-              onClick={toggleReminder}
-              className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300"
-            >
-              With reminders ×
-            </button>
-          )}
-          {activeCount > 0 && (
-            <button
-              onClick={onReset}
-              className="rounded px-1.5 py-0.5 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
+        <div className="flex-1"></div>
 
-        {/* Sort controls */}
-        <div className="flex shrink-0 items-center gap-1">
-          <select
-            value={filters.sortBy ?? 'createdAt'}
-            onChange={(e) => setSortBy(e.target.value as BookmarkFilters['sortBy'])}
-            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-            aria-label="Sort by"
-          >
-            <option value="createdAt">Date saved</option>
-            <option value="lastAccessed">Last opened</option>
-            <option value="reminderDate">Reminder date</option>
-          </select>
+        {/* Close button */}
+        {open && (
           <button
-            onClick={toggleSortDir}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-            aria-label={filters.sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
-            title={filters.sortDir === 'asc' ? 'Oldest first' : 'Newest first'}
+            onClick={() => {
+              setOpen(false)
+              onClose?.()
+            }}
+            className="rounded p-2 sm:p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 min-h-[44px] sm:min-h-0 flex items-center justify-center"
+            aria-label="Close filters"
+            title="Close filters"
           >
-            {filters.sortDir === 'asc' ? (
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-              </svg>
-            ) : (
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-              </svg>
-            )}
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
-        </div>
+        )}
+
       </div>
 
       {/* Expanded panel */}
       {open && (
-        <div id="filter-panel" className="border-t border-gray-100 px-6 py-3 dark:border-gray-800">
-          <div className="flex flex-wrap gap-6">
+        <div id="filter-panel" className="border-t border-gray-100 px-4 sm:px-6 py-3 dark:border-gray-800">
+          {/* Active filters section */}
+          {activeCount > 0 && (
+            <div className="mb-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Active Filters</p>
+                <button
+                  onClick={onReset}
+                  className="text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 dark:hover:text-gray-300 dark:hover:bg-gray-800 px-2 py-1 rounded transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(filters.tags ?? []).map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className="flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-100 dark:bg-brand-900/30 dark:text-brand-300 transition-colors"
+                  >
+                    {tag}
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                ))}
+                {filters.icon && (
+                  <button
+                    onClick={() => toggleIcon(filters.icon!)}
+                    className="flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 transition-colors"
+                  >
+                    {filters.icon} ×
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 sm:gap-6">
 
             {/* Icon filter — predefined picker */}
-            <div>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">Icon</p>
-              <div className="flex flex-wrap gap-1">
+            <div className="w-full sm:w-auto">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Icon</p>
+              <div className="grid grid-cols-8 sm:flex sm:flex-wrap gap-2 sm:gap-1">
                 {iconsInUse.map((icon) => {
                   const active = filters.icon === icon
                   return (
                     <button
                       key={icon}
                       onClick={() => toggleIcon(icon)}
-                      className={`rounded p-1 text-base leading-none transition-colors ${
+                      className={`rounded p-2 sm:p-1 text-lg sm:text-base leading-none transition-colors min-h-[44px] sm:min-h-0 flex items-center justify-center ${
                         active
                           ? 'bg-brand-100 ring-1 ring-brand-500 dark:bg-brand-900/40'
                           : 'hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -181,15 +154,16 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: P
 
             {/* Tags */}
             {allTags.length > 0 && (
-              <div>
-                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">Tags</p>
+              <div className="w-full sm:w-auto">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Tags</p>
+                <div className="flex flex-wrap gap-2 sm:gap-1">
                   {allTags.map((tag) => {
                     const active = (filters.tags ?? []).includes(tag)
                     return (
                       <button
                         key={tag}
                         onClick={() => toggleTag(tag)}
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+                        className={`rounded-full h-8 px-3 py-2 sm:px-2 sm:py-0.5 text-sm sm:text-xs font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center ${
                           active
                             ? 'bg-brand-600 text-white'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
@@ -200,24 +174,9 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset }: P
                       </button>
                     )
                   })}
+                </div>
               </div>
             )}
-
-            {/* Reminder filter */}
-            <div>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-gray-400">Reminder</p>
-              <button
-                onClick={toggleReminder}
-                aria-pressed={filters.hasReminder}
-                className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
-                  filters.hasReminder
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
-                }`}
-              >
-                Has reminder
-              </button>
-            </div>
 
           </div>
         </div>

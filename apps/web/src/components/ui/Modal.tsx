@@ -42,7 +42,7 @@ export function Modal({ title, children, onClose }: Props) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
 
       {/* Panel */}
-      <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900">
+      <div className="relative w-full max-w-md md:max-w-md sm:max-w-[calc(100vw-2rem)] rounded-2xl bg-white p-4 sm:p-6 shadow-xl dark:bg-gray-900 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="mb-5 flex items-center justify-between">
           <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-white">

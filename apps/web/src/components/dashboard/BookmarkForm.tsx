@@ -174,7 +174,7 @@ export function BookmarkForm({
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-4 sm:space-y-4">
           <div>
             <label htmlFor="bm-url" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               URL <span aria-hidden="true" className="text-red-500">*</span>
@@ -210,16 +210,16 @@ export function BookmarkForm({
 
           {/* Icon */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="bm-icon" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Icon
             </label>
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="grid grid-cols-8 sm:flex sm:flex-wrap items-center gap-2 sm:gap-1">
               {allPresetIcons.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => setIcon(icon === emoji ? '' : emoji)}
-                  className={`rounded p-1 text-base leading-none transition-colors ${
+                  className={`rounded p-2 sm:p-1 text-lg sm:text-base leading-none transition-colors min-h-[44px] sm:min-h-0 flex items-center justify-center ${
                     icon === emoji
                       ? 'bg-brand-100 ring-1 ring-brand-500 dark:bg-brand-900/40'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -231,12 +231,13 @@ export function BookmarkForm({
                 </button>
               ))}
               <input
+                id="bm-icon"
                 type="text"
                 value={icon}
-                onChange={(e) => setIcon(e.target.value.slice(0, 10))}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIcon(e.target.value.slice(0, 10))}
                 placeholder="custom"
                 maxLength={10}
-                className="input w-20 py-1 text-center"
+                className="input col-span-3 sm:w-32 py-2 sm:py-1 text-center"
                 aria-label="Custom icon"
               />
             </div>
@@ -246,7 +247,7 @@ export function BookmarkForm({
             <label htmlFor="bm-tags" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Tags
             </label>
-            <div className="mb-2 flex flex-wrap gap-1">
+            <div className="mb-3 flex flex-wrap gap-2 sm:gap-1">
               {allPresetTags.map((tag) => {
                 const active = selectedTags.includes(tag)
                 return (
@@ -254,7 +255,7 @@ export function BookmarkForm({
                     key={tag}
                     type="button"
                     onClick={() => togglePresetTag(tag)}
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${
+                    className={`rounded-full px-3 py-2 sm:px-2 sm:py-0.5 text-sm sm:text-xs font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center ${
                       active
                         ? 'bg-brand-600 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
@@ -270,7 +271,7 @@ export function BookmarkForm({
               id="bm-tags"
               type="text"
               value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTagInput(e.target.value)}
               placeholder="design, tools, reading (comma-separated)"
               className="input"
             />
@@ -310,12 +311,12 @@ export function BookmarkForm({
             <label htmlFor="bm-folder" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Folder
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2">
               <select
                 id="bm-folder"
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
-                className="input"
+                className="input flex-1"
               >
                 <option value="">No folder</option>
                 {folderOptions.map((f) => (
@@ -327,7 +328,7 @@ export function BookmarkForm({
               {!isEditing && onOpenCreateFolder && (
                 <button
                   type="button"
-                  className="btn-secondary whitespace-nowrap"
+                  className="btn-secondary whitespace-nowrap w-full sm:w-auto"
                   onClick={() => onOpenCreateFolder({
                     url,
                     title,
@@ -344,11 +345,11 @@ export function BookmarkForm({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3">
-          <button type="button" onClick={onClose} className="btn-secondary">
+        <div className="mt-6 flex flex-col sm:flex-row sm:justify-end gap-3">
+          <button type="button" onClick={onClose} className="btn-secondary order-2 sm:order-1">
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="btn-primary">
+          <button type="submit" disabled={saving} className="btn-primary order-1 sm:order-2">
             {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Add bookmark'}
           </button>
         </div>
