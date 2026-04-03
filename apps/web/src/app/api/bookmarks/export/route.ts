@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'desc' },
   })
 
-  const exportBookmarks = bookmarks.map((b) => ({
+  const exportBookmarks = bookmarks.map((b: { url: string; title: string; tags: string[]; folder: { id: string; name: string } | null; createdAt: Date }) => ({
     url: b.url,
     title: b.title,
     tags: b.tags,
