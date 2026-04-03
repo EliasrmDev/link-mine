@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       GROUP BY name
       ORDER BY count DESC, name ASC
     `
-    const tags = rows.map((r) => ({ name: r.name, count: Number(r.count) }))
+    const tags = rows.map((r: { name: string; count: bigint }) => ({ name: r.name, count: Number(r.count) }))
     return NextResponse.json(tags)
   } else {
     // Original behavior - just return tag names from presets
@@ -31,6 +31,6 @@ export async function GET(request: NextRequest) {
       ORDER BY "value" ASC
     `
 
-    return NextResponse.json({ tags: tags.map((t) => t.value).sort() })
+    return NextResponse.json({ tags: tags.map((t: { value: string }) => t.value).sort() })
   }
 }

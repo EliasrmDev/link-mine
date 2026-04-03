@@ -63,10 +63,10 @@ export default async function DashboardPage() {
         })),
     }))
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const serializedBookmarks = (bookmarks as any[]).map((b) => ({
+  const serializedBookmarks = bookmarks.map((b) => ({
     ...b,
     icon:         b.icon ?? null,
+    folder:       b.folder ?? undefined,
     reminderDate: b.reminderDate ? (b.reminderDate as Date).toISOString() : null,
     lastAccessed: b.lastAccessed ? (b.lastAccessed as Date).toISOString() : null,
     createdAt:    b.createdAt.toISOString(),

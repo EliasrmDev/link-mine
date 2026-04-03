@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest, normalizeTags } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
   // Parse comma-separated tags into array
   const tagList = tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : []
 
-  const where: Record<string, unknown> = {
+  const where: Prisma.BookmarkWhereInput = {
     userId: auth.userId,
     ...(folderId === 'none' ? { folderId: null } : folderId ? { folderId } : {}),
     ...(tagList.length > 0 ? { tags: { hasSome: tagList } } : {}),
@@ -57,23 +58,20 @@ export async function GET(request: NextRequest) {
   }
 
   // Build orderBy — nullable fields sort nulls first (asc) or last (desc)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orderBy: any =
+  const orderBy: Prisma.BookmarkOrderByWithRelationInput =
     sortBy === 'createdAt'
       ? { createdAt: sortDir }
       : { [sortBy]: { sort: sortDir, nulls: sortDir === 'asc' ? 'first' : 'last' } }
 
   const [bookmarks, total] = await Promise.all([
     prisma.bookmark.findMany({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      where: where as any,
+      where,
       include: { folder: { select: { id: true, name: true } } },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    prisma.bookmark.count({ where: where as any }),
+    prisma.bookmark.count({ where }),
   ])
 
   return NextResponse.json({ bookmarks, total, page, pageSize })
@@ -104,7 +102,6 @@ export async function POST(request: NextRequest) {
 
   try {
     const bookmark = await prisma.bookmark.create({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: {
         url,
         title,
@@ -113,7 +110,7 @@ export async function POST(request: NextRequest) {
         reminderDate: reminderDate ? new Date(reminderDate) : null,
         folderId: folderId ?? null,
         userId: auth.userId,
-      } as any,
+      },
       include: { folder: { select: { id: true, name: true } } },
     })
 

@@ -104,22 +104,23 @@ function parseJSON(jsonContent: string): Array<{url: string, title: string, tags
     const data = JSON.parse(jsonContent)
 
     // Handle LinkMine export format
+    type RawEntry = Record<string, unknown>
     if (data.bookmarks && Array.isArray(data.bookmarks)) {
-      return data.bookmarks.map((b: any) => ({
-        url: b.url,
-        title: b.title,
-        tags: Array.isArray(b.tags) ? b.tags : [],
-        folder: b.folder || 'Ungrouped'
+      return (data.bookmarks as RawEntry[]).map((b) => ({
+        url: String(b.url ?? ''),
+        title: String(b.title ?? ''),
+        tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map(String) : [],
+        folder: b.folder ? String(b.folder) : 'Ungrouped'
       }))
     }
 
     // Handle generic array format
     if (Array.isArray(data)) {
-      return data.map((b: any) => ({
-        url: b.url,
-        title: b.title || b.name,
-        tags: Array.isArray(b.tags) ? b.tags : [],
-        folder: b.folder || 'Ungrouped'
+      return (data as RawEntry[]).map((b) => ({
+        url: String(b.url ?? ''),
+        title: String(b.title ?? b.name ?? ''),
+        tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map(String) : [],
+        folder: b.folder ? String(b.folder) : 'Ungrouped'
       }))
     }
 

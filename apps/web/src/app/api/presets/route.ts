@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
     WHERE "userId" = ${auth.userId}
   `
 
-  const tags = normalizeTags(presets.filter((p) => p.type === 'TAG').map((p) => p.value)).sort()
-  const icons = normalizeIcons(presets.filter((p) => p.type === 'ICON').map((p) => p.value))
+  const tags = normalizeTags(presets.filter((p: PresetRow) => p.type === 'TAG').map((p: PresetRow) => p.value)).sort()
+  const icons = normalizeIcons(presets.filter((p: PresetRow) => p.type === 'ICON').map((p: PresetRow) => p.value))
 
   return NextResponse.json({ tags, icons })
 }

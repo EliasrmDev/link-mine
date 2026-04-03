@@ -12,10 +12,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!existing) return notFound('Bookmark')
   if (existing.userId !== auth.userId) return forbidden()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await prisma.bookmark.update({
     where: { id },
-    data: { lastAccessed: new Date() } as any,
+    data: { lastAccessed: new Date() },
   })
 
   return new NextResponse(null, { status: 204 })

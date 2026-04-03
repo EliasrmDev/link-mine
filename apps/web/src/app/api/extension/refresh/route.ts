@@ -42,8 +42,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Update lastUsed for audit trail (non-blocking: don't await)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  prisma.extensionToken.update({ where: { id: record.id }, data: { lastUsed: new Date() } as any })
+  prisma.extensionToken.update({ where: { id: record.id }, data: { lastUsed: new Date() } })
     .catch(() => { /* non-critical */ })
 
   // Issue a fresh JWT access token

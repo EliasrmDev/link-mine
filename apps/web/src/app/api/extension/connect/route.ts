@@ -47,8 +47,7 @@ export async function POST(request: NextRequest) {
     // Slide expiry on the existing valid token
     await prisma.extensionToken.update({
       where: { id: existing.id },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: { expiresAt: refreshTokenExpiresAt, lastUsed: new Date() } as any,
+      data: { expiresAt: refreshTokenExpiresAt, lastUsed: new Date() },
     })
     refreshToken = existing.token
   } else {
