@@ -40,7 +40,7 @@ export default async function DashboardPage() {
 
   const tagCounts = (() => {
     const counts = new Map<string, number>()
-    rawTagData.forEach((b) => b.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
+    rawTagData.forEach((b: { tags: string[] }) => b.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
     return Array.from(counts.entries()).map(([name, count]) => ({ name, count }))
   })()
 
