@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { Sun, Moon } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Sun, Moon, Download, Upload, ChevronDown } from 'lucide-react'
 import { useTheme } from '../ThemeProvider'
 import type { Folder } from '@linkmine/shared'
 
@@ -26,6 +26,10 @@ export function Sidebar({
   onDeleteFolder,
 }: Props) {
   const { toggle } = useTheme()
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [importMenuOpen, setImportMenuOpen] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
   const allBookmarksCount = totalBookmarksInTree + unsortedCount
 
@@ -126,17 +130,220 @@ export function Sidebar({
           <span className="hidden dark:block">Dark mode</span>
         </button>
 
-        {/* Export */}
-        <a
-          href="/api/bookmarks/export"
-          download
-          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export bookmarks
-        </a>
+        {/* Export dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setExportMenuOpen(!exportMenuOpen)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              <span>Export bookmarks</span>
+            </div>
+            <ChevronDown className={`h-3 w-3 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {exportMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setExportMenuOpen(false)}
+                aria-hidden="true"
+              />
+              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                <a
+                  href="/api/bookmarks/export?format=html"
+                  download
+                  onClick={() => setExportMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-blue-500">🌐</span>
+                  <div>
+                    <div className="font-medium">Para navegador</div>
+                    <div className="text-xs text-gray-500">HTML</div>
+                  </div>
+                </a>
+                <a
+                  href="/api/bookmarks/export?format=csv"
+                  download
+                  onClick={() => setExportMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-green-500">📊</span>
+                  <div>
+                    <div className="font-medium">Para Excel</div>
+                    <div className="text-xs text-gray-500">CSV</div>
+                  </div>
+                </a>
+                <a
+                  href="/api/bookmarks/export?format=markdown"
+                  download
+                  onClick={() => setExportMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-purple-500">📝</span>
+                  <div>
+                    <div className="font-medium">Para Notion/Obsidian</div>
+                    <div className="text-xs text-gray-500">Markdown</div>
+                  </div>
+                </a>
+                <a
+                  href="/api/bookmarks/export?format=json"
+                  download
+                  onClick={() => setExportMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-orange-500">💾</span>
+                  <div>
+                    <div className="font-medium">Backup completo</div>
+                    <div className="text-xs text-gray-500">JSON</div>
+                  </div>
+                </a>
+                <a
+                  href="/api/bookmarks/export?format=pdf"
+                  download
+                  onClick={() => setExportMenuOpen(false)}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-red-500">📄</span>
+                  <div>
+                    <div className="font-medium">Documento PDF</div>
+                    <div className="text-xs text-gray-500">PDF</div>
+                  </div>
+                </a>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Import dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setImportMenuOpen(!importMenuOpen)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 justify-between"
+            disabled={importing}
+          >
+            <div className="flex items-center gap-2">
+              {importing ? (
+                <div className="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              <span>{importing ? 'Importing...' : 'Import bookmarks'}</span>
+            </div>
+            <ChevronDown className={`h-3 w-3 transition-transform ${importMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {importMenuOpen && !importing && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setImportMenuOpen(false)}
+                aria-hidden="true"
+              />
+              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.setAttribute('accept', '.html')
+                    fileInputRef.current?.click()
+                    setImportMenuOpen(false)
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-blue-500">🌐</span>
+                  <div className="flex flex-col items-start">
+                    <div className="font-medium">Desde navegador</div>
+                    <div className="text-xs text-gray-500">HTML</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.setAttribute('accept', '.csv')
+                    fileInputRef.current?.click()
+                    setImportMenuOpen(false)
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-green-500">📊</span>
+                  <div className="flex flex-col items-start">
+                    <div className="font-medium">Desde Excel</div>
+                    <div className="text-xs text-gray-500">CSV</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.setAttribute('accept', '.md,.markdown')
+                    fileInputRef.current?.click()
+                    setImportMenuOpen(false)
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-purple-500">📝</span>
+                  <div className="flex flex-col items-start">
+                    <div className="font-medium">Desde Notion/Obsidian</div>
+                    <div className="text-xs text-gray-500">Markdown</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    fileInputRef.current?.setAttribute('accept', '.json')
+                    fileInputRef.current?.click()
+                    setImportMenuOpen(false)
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <span className="text-orange-500">💾</span>
+                  <div className="flex flex-col items-start">
+                    <div className="font-medium">Desde backup</div>
+                    <div className="text-xs text-gray-500">JSON</div>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+
+            setImporting(true)
+            const formData = new FormData()
+            formData.append('file', file)
+
+            try {
+              const response = await fetch('/api/bookmarks/import', {
+                method: 'POST',
+                body: formData,
+              })
+
+              const result = await response.json()
+
+              if (response.ok) {
+                alert(`Import successful!
+Imported: ${result.imported} bookmarks
+Skipped: ${result.skipped} (already exist)
+Total processed: ${result.total}`)
+
+                // Reload the page to show imported bookmarks
+                window.location.reload()
+              } else {
+                alert(`Import failed: ${result.error || 'Unknown error'}`)
+              }
+            } catch (error) {
+              alert('Error importing bookmarks. Please check your file format and try again.')
+            } finally {
+              setImporting(false)
+              // Reset input
+              e.target.value = ''
+            }
+          }}
+        />
       </div>
     </nav>
   )
