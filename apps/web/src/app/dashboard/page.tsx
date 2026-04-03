@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const userId = session!.user!.id as string
 
   // Fetch initial data server-side — no loading spinner on first render
-  const [foldersFlat, bookmarks, total, presets, rawTagData] = await Promise.all([
+  const [foldersFlat, bookmarks, total] = await Promise.all([
     prisma.folder.findMany({
       where: { userId },
       include: { _count: { select: { bookmarks: true } } },
@@ -23,6 +23,9 @@ export default async function DashboardPage() {
       take: 20,
     }),
     prisma.bookmark.count({ where: { userId } }),
+  ])
+
+  const [presets, rawTagData] = await Promise.all([
     // Get presets for tags and icons
     prisma.userPreset.findMany({
       where: { userId },
@@ -37,7 +40,7 @@ export default async function DashboardPage() {
 
   const tagCounts = (() => {
     const counts = new Map<string, number>()
-    rawTagData.forEach((b: { tags: string[] }) => b.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
+    rawTagData.forEach((b) => b.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
     return Array.from(counts.entries()).map(([name, count]) => ({ name, count }))
   })()
 
