@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest, notFound, forbidden, normalizeTags } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
@@ -74,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(reminderDate !== undefined
           ? { reminderDate: reminderDate ? new Date(reminderDate) : null }
           : {}),
-      } as Prisma.BookmarkUpdateInput,
+      },
       include: { folder: { select: { id: true, name: true } } },
     })
 
