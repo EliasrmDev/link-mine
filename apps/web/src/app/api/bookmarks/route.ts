@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest, normalizeTags } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest) {
   // Parse comma-separated tags into array
   const tagList = tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : []
 
-  const where: Prisma.BookmarkWhereInput = {
+  const where = {
     userId: auth.userId,
     ...(folderId === 'none' ? { folderId: null } : folderId ? { folderId } : {}),
     ...(tagList.length > 0 ? { tags: { hasSome: tagList } } : {}),
@@ -58,7 +57,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Build orderBy — nullable fields sort nulls first (asc) or last (desc)
-  const orderBy: Prisma.BookmarkOrderByWithRelationInput =
+  const orderBy =
     sortBy === 'createdAt'
       ? { createdAt: sortDir }
       : { [sortBy]: { sort: sortDir, nulls: sortDir === 'asc' ? 'first' : 'last' } }
