@@ -10,22 +10,19 @@ export default async function DashboardPage() {
   const userId = session!.user!.id as string
 
   // Fetch initial data server-side — no loading spinner on first render
-  const [foldersFlat, { bookmarks, total }, presets, tagCounts] = await Promise.all([
+  const [foldersFlat, bookmarks, total, presets, rawTagData] = await Promise.all([
     prisma.folder.findMany({
       where: { userId },
       include: { _count: { select: { bookmarks: true } } },
       orderBy: { createdAt: 'asc' },
     }),
-    prisma.bookmark
-      .findMany({
-        where: { userId },
-        include: { folder: { select: { id: true, name: true } } },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      })
-      .then((bookmarks) =>
-        prisma.bookmark.count({ where: { userId } }).then((total) => ({ bookmarks, total })),
-      ),
+    prisma.bookmark.findMany({
+      where: { userId },
+      include: { folder: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+    prisma.bookmark.count({ where: { userId } }),
     // Get presets for tags and icons
     prisma.userPreset.findMany({
       where: { userId },
@@ -35,16 +32,14 @@ export default async function DashboardPage() {
     prisma.bookmark.findMany({
       where: { userId },
       select: { tags: true },
-    }).then(bookmarks => {
-      const tagCounts = new Map<string, number>();
-      bookmarks.forEach(bookmark => {
-        bookmark.tags.forEach(tag => {
-          tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-        });
-      });
-      return Array.from(tagCounts.entries()).map(([name, count]) => ({ name, count }));
     }),
   ])
+
+  const tagCounts = (() => {
+    const counts = new Map<string, number>()
+    rawTagData.forEach((b) => b.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
+    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }))
+  })()
 
   // Build tree
   const folders = foldersFlat
