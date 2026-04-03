@@ -1,0 +1,29 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Block sensitive areas
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /extension-auth/
+Disallow: /_next/
+Disallow: /admin/
+Disallow: /*.json
+Disallow: /*?*
+
+# Allow important pages
+Allow: /
+Allow: /login
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+Allow: /features
+Allow: /pricing
+
+# Sitemap location
+Sitemap: https://linkmine.eliasrm.dev/sitemap.xml
+Sitemap: https://linkmine.eliasrm.dev/sitemap-0.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1

@@ -1,0 +1,8 @@
+Contact: mailto:security@linkmine.eliasrm.dev
+Contact: https://linkmine.eliasrm.dev/security
+Encryption: https://keybase.io/linkmine/pgp_keys.asc
+Acknowledgments: https://linkmine.eliasrm.dev/security/thanks
+Languages: en
+Canonical: https://linkmine.eliasrm.dev/.well-known/security.txt
+Policy: https://linkmine.eliasrm.dev/security-policy
+Expires: 2027-12-31T23:59:59.000Z

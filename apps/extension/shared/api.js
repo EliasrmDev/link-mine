@@ -11,7 +11,7 @@
  * set authError: true so the popup can redirect to the login screen.
  */
 
-export const BASE_URL = 'http://localhost:3000'
+export const BASE_URL = 'https://linkmine.eliasrm.dev'
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 

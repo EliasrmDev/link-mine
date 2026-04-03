@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 /**
- * Centralized auth guard for all dashboard routes.
+ * Centralized auth guard for all dashboard routes with SEO optimizations.
  *
  * Public paths (no auth required):
  *   /            — landing page
@@ -22,14 +22,47 @@ export const config = {
 }
 
 export default auth((request) => {
-  const { pathname } = request.nextUrl
+  const { pathname, search } = request.nextUrl
   const session = request.auth
 
+  // SEO redirects (301 permanent redirects)
+  if (pathname === '/home') {
+    return NextResponse.redirect(new URL('/', request.url), { status: 301 })
+  }
+
+  if (pathname === '/app') {
+    return NextResponse.redirect(new URL('/dashboard', request.url), { status: 301 })
+  }
+
+  // Remove trailing slashes for SEO (except root)
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return NextResponse.redirect(
+      new URL(pathname.slice(0, -1) + search, request.url),
+      { status: 301 }
+    )
+  }
+
+  // Lowercase redirects for consistency
+  if (pathname !== pathname.toLowerCase()) {
+    return NextResponse.redirect(
+      new URL(pathname.toLowerCase() + search, request.url),
+      { status: 301 }
+    )
+  }
+
+  // Handle public pages
   if (
     PUBLIC_PAGES.has(pathname) ||
     PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   ) {
-    return NextResponse.next()
+    const response = NextResponse.next()
+
+    // Add SEO headers for public pages
+    if (!pathname.startsWith('/api')) {
+      response.headers.set('X-Robots-Tag', 'index, follow')
+    }
+
+    return response
   }
 
   // Protect dashboard pages
@@ -39,6 +72,11 @@ export default auth((request) => {
       loginUrl.searchParams.set('callbackUrl', pathname)
       return NextResponse.redirect(loginUrl)
     }
+
+    // Dashboard pages should not be indexed
+    const response = NextResponse.next()
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    return response
   }
 
   // Protect API routes — only block requests with no Bearer token and no session
@@ -47,6 +85,11 @@ export default auth((request) => {
     if (!hasBearer) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // API routes should not be indexed
+    const response = NextResponse.next()
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+    return response
   }
 
   return NextResponse.next()

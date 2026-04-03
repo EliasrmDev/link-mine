@@ -243,7 +243,7 @@ function flashBadge(text, color, durationMs) {
 
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') {
-    chrome.tabs.create({ url: 'http://localhost:3000' })
+    chrome.tabs.create({ url: 'https://linkmine.eliasrm.dev' })
   }
   // Run an immediate token refresh + reminder check on install/update
   proactiveTokenRefresh().then(checkReminders)
