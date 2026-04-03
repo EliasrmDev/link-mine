@@ -17,6 +17,10 @@ import { NextResponse } from 'next/server'
 const PUBLIC_PAGES = new Set(['/', '/login'])
 const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/extension/refresh']
 
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+}
+
 export default auth((request) => {
   const { pathname } = request.nextUrl
   const session = request.auth
@@ -48,6 +52,3 @@ export default auth((request) => {
   return NextResponse.next()
 })
 
-export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
-}
