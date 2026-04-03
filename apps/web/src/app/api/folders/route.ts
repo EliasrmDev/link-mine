@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
@@ -20,12 +21,14 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'asc' },
   })
 
+  type FolderWithCount = Prisma.FolderGetPayload<{ include: { _count: { select: { bookmarks: true } } } }>
+
   // Build tree (max 2 levels)
   const roots = folders
-    .filter((f) => !f.parentId)
-    .map((f) => ({
+    .filter((f: FolderWithCount) => !f.parentId)
+    .map((f: FolderWithCount) => ({
       ...f,
-      children: folders.filter((c) => c.parentId === f.id),
+      children: folders.filter((c: FolderWithCount) => c.parentId === f.id),
     }))
 
   return NextResponse.json(roots)
