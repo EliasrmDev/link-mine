@@ -25,7 +25,7 @@ function extractFaviconFromHtml(html: string, pageUrl: string): string {
   return ''
 }
 
-// Get favicon URL: parse HTML first, fallback to Google favicon service (never 404)
+// Get favicon URL with multiple fallback strategies
 function getFaviconUrl(pageUrl: string, html?: string): string {
   try {
     const domain = new URL(pageUrl).hostname
@@ -33,7 +33,8 @@ function getFaviconUrl(pageUrl: string, html?: string): string {
       const fromHtml = extractFaviconFromHtml(html, pageUrl)
       if (fromHtml) return fromHtml
     }
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+    // Return direct favicon.ico path first, frontend will fallback to Google service
+    return `https://${domain}/favicon.ico`
   } catch {
     return ''
   }

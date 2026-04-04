@@ -121,7 +121,7 @@ function BookmarkCard({
     try { return new URL(bookmark.url).hostname } catch { return '' }
   })()
 
-  const favicon = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+  const favicon = `https://${domain}/favicon.ico`
   const due = isReminderDue(bookmark)
   const upcoming = isReminderUpcoming(bookmark)
 
@@ -144,8 +144,11 @@ function BookmarkCard({
               height={16}
               className="mt-0.5 h-4 w-4 shrink-0 rounded"
               onError={(e) => {
-                // Fallback to default favicon service if custom URL fails
-                e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+                const target = e.currentTarget
+                // Try Google favicon service as fallback
+                if (!target.src.includes('google.com/s2/favicons')) {
+                  target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+                }
               }}
             />
           ) : (

@@ -242,8 +242,22 @@ function populateCurrentTab() {
     if (faviconUrl) {
       pageFavicon.src = faviconUrl
       pageFavicon.alt = ''
+      pageFavicon.onerror = function() {
+        if (!this.src.includes('google.com/s2/favicons')) {
+          this.src = getGoogleFaviconUrl(url, 32)
+        } else {
+          this.style.display = 'none'
+        }
+      }
       pageIconFavicon.src = faviconUrl
       pageIconFavicon.alt = ''
+      pageIconFavicon.onerror = function() {
+        if (!this.src.includes('google.com/s2/favicons')) {
+          this.src = getGoogleFaviconUrl(url, 32)
+        } else {
+          this.style.display = 'none'
+        }
+      }
     }
   }
 
@@ -277,6 +291,18 @@ function updateCurrentIconPreview() {
       pageIconValue.hidden = true
       pageIconFavicon.hidden = false
       pageIconFavicon.src = custom
+      pageIconFavicon.onerror = function() {
+        try {
+          const domain = new URL(custom).hostname
+          if (!this.src.includes('google.com/s2/favicons')) {
+            this.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+          } else {
+            this.style.display = 'none'
+          }
+        } catch {
+          this.style.display = 'none'
+        }
+      }
       pageIconValue.textContent = ''
     } else {
       // It's an emoji
@@ -475,10 +501,11 @@ function renderRecent(bookmarks) {
     const iconHtml = bm.icon
       ? bm.icon.startsWith('http')
         ? `<img src="${escapeAttr(bm.icon)}" alt="" width="14" height="14" class="favicon"
-             onerror="this.src='${getFaviconUrl(bm.url, 16)}'" />`
+             onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 16)}'}" />`
         : `<span class="recent-icon" aria-hidden="true">${escapeHtml(bm.icon)}</span>`
       : `<img src="${getFaviconUrl(bm.url, 16)}"
-               alt="" width="14" height="14" class="favicon" onerror="this.style.display='none'" />`
+               alt="" width="14" height="14" class="favicon"
+               onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 16)}'}else{this.style.display='none'}" />`
 
     li.innerHTML = `
       ${iconHtml}
@@ -578,7 +605,8 @@ async function showEditForm(li, bm) {
 
   form.innerHTML = `
     <div class="edit-page-info">
-      <img class="edit-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16" />
+      <img class="edit-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16"
+           onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 32)}'}" />
       <div class="edit-page-text">
         <p class="edit-page-url" title="${bm.url}">${domain}</p>
       </div>
@@ -593,7 +621,8 @@ async function showEditForm(li, bm) {
       <label class="edit-label">Icon</label>
       <div class="edit-icon-picker">
         <div class="edit-icon-preview" aria-live="polite">
-          <img class="edit-icon-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16" />
+          <img class="edit-icon-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16"
+               onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 32)}'}" />
           <span class="edit-icon-value" hidden></span>
         </div>
         <button type="button" class="edit-icon-btn" aria-label="Edit icon" title="Edit icon">
@@ -993,13 +1022,22 @@ function getFaviconUrl(url, size = 16) {
       currentTab.favIconUrl !== '' &&
       !currentTab.favIconUrl.startsWith('data:') &&
       !currentTab.favIconUrl.includes('chrome://') &&
-      isPublicUrl(currentTab.favIconUrl) &&
       currentTab.url.includes(domain)) {
     return currentTab.favIconUrl
   }
 
-  // Fallback to Google's favicon service (always public, never 404)
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`
+  // Fallback to direct favicon.ico path on domain
+  return `https://${domain}/favicon.ico`
+}
+
+// Helper to get Google favicon service URL as fallback
+function getGoogleFaviconUrl(url, size = 16) {
+  try {
+    const domain = new URL(url).hostname
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`
+  } catch {
+    return ''
+  }
 }
 
 function escapeHtml(str) {

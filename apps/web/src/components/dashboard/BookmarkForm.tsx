@@ -25,7 +25,7 @@ function normalizeTagsCaseInsensitive(tags: string[]): string[] {
 function getFaviconUrl(url: string): string {
   try {
     const domain = new URL(url).hostname
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+    return `https://${domain}/favicon.ico`
   } catch {
     return ''
   }
@@ -538,7 +538,12 @@ export function BookmarkForm({
                       const target = e.target as HTMLImageElement
                       try {
                         const domain = new URL(currentFavicon).hostname
-                        target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+                        // Try Google favicon service as fallback
+                        if (!target.src.includes('google.com/s2/favicons')) {
+                          target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+                        } else {
+                          target.style.display = 'none'
+                        }
                       } catch {
                         target.style.display = 'none'
                       }
@@ -565,7 +570,12 @@ export function BookmarkForm({
                       const target = e.target as HTMLImageElement
                       try {
                         const domain = new URL(url).hostname
-                        target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+                        // Try Google favicon service as fallback
+                        if (!target.src.includes('google.com/s2/favicons')) {
+                          target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
+                        } else {
+                          target.style.display = 'none'
+                        }
                       } catch {
                         target.style.display = 'none'
                       }
