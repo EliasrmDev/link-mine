@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "PresetType" ADD VALUE 'FAVICON_CACHE';

@@ -10,6 +10,8 @@ import { TopBar } from './TopBar'
 import { FilterBar } from './FilterBar'
 import { TagsIconsManager } from './TagsIconsManager'
 import { ConfirmModal } from '../ui/ConfirmModal'
+import { Breadcrumb } from './Breadcrumb'
+import { SubfolderGrid } from './SubfolderGrid'
 
 const FILTERS_STORAGE_KEY = 'linkmine_filters'
 
@@ -68,6 +70,10 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     Math.max(initialTotal - countBookmarksInFolders(initialFolders), 0),
   )
   const [selectedFolderId, setSelectedFolderId] = useState<string | null | 'all'>('all')
+  const [folderHierarchy, setFolderHierarchy] = useState<Array<{ id: string | 'all'; name: string }>>([
+    { id: 'all', name: 'All bookmarks' }
+  ])
+  const [currentSubfolders, setCurrentSubfolders] = useState<Folder[]>([])
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<BookmarkFilters>(DEFAULT_FILTERS)
   const [loading, setLoading] = useState(false)
@@ -178,6 +184,55 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     ])
   }, [fetchBookmarks, fetchFolders, selectedFolderId, query])
 
+  // Navigate to a folder and update breadcrumbs
+  const navigateToFolder = useCallback((folderId: string | null | 'all', folderName?: string) => {
+    setSelectedFolderId(folderId)
+
+    if (folderId === 'all') {
+      setFolderHierarchy([{ id: 'all', name: 'All bookmarks' }])
+      setCurrentSubfolders([])
+    } else if (folderId === 'none') {
+      setFolderHierarchy([{ id: 'all', name: 'All bookmarks' }, { id: 'none', name: 'Unsorted' }])
+      setCurrentSubfolders([])
+    } else if (folderId) {
+      // Find the folder to navigate to
+      const targetFolder = folders.find(f => f.id === folderId) ||
+        folders.flatMap(f => f.children || []).find(c => c.id === folderId)
+
+      if (targetFolder) {
+        // Check if it's a child folder
+        const parentFolder = folders.find(f => f.children?.some(c => c.id === folderId))
+
+        if (parentFolder) {
+          // It's a child folder - show breadcrumb with parent
+          setFolderHierarchy([
+            { id: 'all', name: 'All bookmarks' },
+            { id: parentFolder.id, name: parentFolder.name },
+            { id: folderId, name: targetFolder.name }
+          ])
+          setCurrentSubfolders([])
+        } else {
+          // It's a parent folder - show its children as subfolders
+          setFolderHierarchy([
+            { id: 'all', name: 'All bookmarks' },
+            { id: folderId, name: targetFolder.name }
+          ])
+          setCurrentSubfolders(targetFolder.children || [])
+        }
+      }
+    }
+
+    void fetchBookmarks({ folderId, q: query })
+  }, [folders, query, fetchBookmarks])
+
+  // Go back in breadcrumb navigation
+  const goBackToParent = useCallback(() => {
+    if (folderHierarchy.length > 1) {
+      const parentLevel = folderHierarchy[folderHierarchy.length - 2]
+      navigateToFolder(parentLevel.id, parentLevel.name)
+    }
+  }, [folderHierarchy, navigateToFolder])
+
   // SSE subscription for real-time sync
   useEffect(() => {
     const es = new EventSource('/api/sync/stream')
@@ -215,8 +270,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   }
 
   const handleFolderSelect = (id: string | null | 'all') => {
-    setSelectedFolderId(id)
-    fetchBookmarks({ folderId: id, q: query })
+    navigateToFolder(id)
   }
 
   const handleFiltersChange = (next: BookmarkFilters) => {
@@ -290,7 +344,16 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     if (!confirm('Delete this folder? Bookmarks inside will be moved to "All bookmarks".')) return
     await fetch(`/api/folders/${id}`, { method: 'DELETE' })
     await Promise.all([fetchFolders(), fetchBookmarks({ folderId: 'all', q: query })])
-    if (selectedFolderId === id) setSelectedFolderId('all')
+
+    // If the deleted folder is currently selected, navigate back to parent or "All bookmarks"
+    if (selectedFolderId === id) {
+      if (folderHierarchy.length > 1) {
+        const parentLevel = folderHierarchy[folderHierarchy.length - 2]
+        navigateToFolder(parentLevel.id, parentLevel.name)
+      } else {
+        navigateToFolder('all')
+      }
+    }
   }
 
   // Tags and Icons Management
@@ -371,27 +434,30 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
       throw new Error('Failed to create icon')
     }
 
-  // Refresh data to show new icon
+    // Refresh data to show new icon
+    await refreshFromServer()
+  }
+
+  const handleIconDeleted = async (icon: string) => {
+    const response = await fetch('/api/icons/delete', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ icon }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to delete icon')
+    }
+
+    // Refresh bookmarks to show updated icons
     await refreshFromServer()
   }
 
   // Get current section name for mobile label
   const getCurrentSectionName = (): string => {
-    if (selectedFolderId === 'all') return 'All bookmarks'
-    if (selectedFolderId === 'none') return 'Unsorted'
-    if (selectedFolderId) {
-      const findFolder = (folders: Folder[], id: string): Folder | null => {
-        for (const folder of folders) {
-          if (folder.id === id) return folder
-          if (folder.children) {
-            const found = findFolder(folder.children, id)
-            if (found) return found
-          }
-        }
-        return null
-      }
-      const folder = findFolder(folders, selectedFolderId)
-      return folder ? `Folder: ${folder.name}` : 'Unknown folder'
+    if (folderHierarchy.length > 0) {
+      const current = folderHierarchy[folderHierarchy.length - 1]
+      return current.name
     }
     return 'All bookmarks'
   }
@@ -431,7 +497,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
             unsortedCount={unsortedCount}
             selectedFolderId={selectedFolderId}
             onSelectFolder={(id) => {
-              handleFolderSelect(id)
+              navigateToFolder(id)
               setSidebarOpen(false) // Close sidebar on mobile after selection
             }}
             onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
@@ -472,15 +538,36 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
         <main className="flex-1 overflow-y-auto p-6" id="main-content">
           {activeView === 'bookmarks' ? (
-            <BookmarkGrid
-              bookmarks={bookmarks}
-              total={total}
-              loading={loading}
-              folders={folders}
-              onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
-              onDelete={handleDeleteBookmark}
-              showOldLinks={showOldLinks}
-            />
+            <div className="space-y-6">
+              {/* Breadcrumb navigation */}
+              {folderHierarchy.length > 1 && (
+                <Breadcrumb
+                  hierarchy={folderHierarchy}
+                  onNavigate={navigateToFolder}
+                  onBack={goBackToParent}
+                />
+              )}
+
+              {/* Subfolders grid */}
+              {currentSubfolders.length > 0 && (
+                <SubfolderGrid
+                  subfolders={currentSubfolders}
+                  onNavigate={navigateToFolder}
+                  onEdit={(folder) => setFolderForm({ open: true, folder })}
+                  onDelete={handleDeleteFolder}
+                />
+              )}
+
+              <BookmarkGrid
+                bookmarks={bookmarks}
+                total={total}
+                loading={loading}
+                folders={folders}
+                onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
+                onDelete={handleDeleteBookmark}
+                showOldLinks={showOldLinks}
+              />
+            </div>
           ) : (
             <TagsIconsManager
               allTags={allTags}
@@ -490,6 +577,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
               onTagRenamed={handleTagRenamed}
               onTagDeleted={handleTagDeleted}
               onIconUpdated={handleIconUpdated}
+              onIconDeleted={handleIconDeleted}
               onTagCreated={handleTagCreated}
               onIconCreated={handleIconCreated}
             />
@@ -505,6 +593,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           folders={folders}
           defaultFolderId={selectedFolderId !== 'all' ? (selectedFolderId ?? null) : null}
           onOpenCreateFolder={handleOpenCreateFolderFromBookmark}
+          onEditExisting={(existingBookmark) => setBookmarkForm({ open: true, bookmark: existingBookmark })}
           onSave={handleBookmarkSaved}
           onClose={() => setBookmarkForm({ open: false })}
         />

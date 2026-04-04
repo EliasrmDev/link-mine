@@ -134,10 +134,28 @@ function BookmarkCard({
       <div className="flex items-start gap-3">
         {/* Icon or favicon */}
         {bookmark.icon ? (
-          <span className="mt-0.5 shrink-0 text-base leading-none" aria-hidden="true">
-            {bookmark.icon}
-          </span>
+          bookmark.icon.startsWith('http') ? (
+            // Favicon URL
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={bookmark.icon}
+              alt=""
+              width={16}
+              height={16}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded"
+              onError={(e) => {
+                // Fallback to default favicon service if custom URL fails
+                e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+              }}
+            />
+          ) : (
+            // Emoji icon
+            <span className="mt-0.5 shrink-0 text-base leading-none" aria-hidden="true">
+              {bookmark.icon}
+            </span>
+          )
         ) : (
+          // Default favicon fallback
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={favicon}

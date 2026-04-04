@@ -8,7 +8,7 @@ const CreateSchema = z.object({
   url: z.string().url('Invalid URL'),
   title: z.string().min(1, 'Title is required').max(500),
   tags: z.array(z.string().max(50)).max(20).optional().default([]),
-  icon: z.string().max(10).nullable().optional(),
+  icon: z.string().max(500).nullable().optional(), // Increased limit for favicon URLs
   reminderDate: z.string().datetime().nullable().optional(),
   folderId: z.string().cuid().nullable().optional(),
 })
@@ -89,7 +89,20 @@ export async function POST(request: NextRequest) {
 
   const { url, title, tags, icon, reminderDate, folderId } = parsed.data
   const normalizedTags = normalizeTags(tags)
-  const normalizedIcon = icon?.trim() || null
+
+  // Process icon - handle different icon types
+  let processedIcon = icon?.trim() || null
+
+  // Only limit simple emoji/text icons to 10 chars
+  // Allow URLs (http/https), data URLs, chrome-extension URLs, and file extensions
+  if (processedIcon &&
+      !processedIcon.startsWith('http') &&
+      !processedIcon.startsWith('data:') &&
+      !processedIcon.startsWith('chrome-extension:') &&
+      !processedIcon.includes('.') &&
+      !/^[a-zA-Z]+:\/\//.test(processedIcon)) {
+    processedIcon = processedIcon.slice(0, 10)
+  }
 
   // Verify folder ownership if provided
   if (folderId) {
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
         url,
         title,
         tags: normalizedTags,
-        icon: normalizedIcon,
+        icon: processedIcon,
         reminderDate: reminderDate ? new Date(reminderDate) : null,
         folderId: folderId ?? null,
         userId: auth.userId,
@@ -123,10 +136,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (normalizedIcon) {
+    // Only save non-favicon icons as presets (emojis, not URLs)
+    if (processedIcon && !processedIcon.startsWith('http')) {
       await prisma.$executeRaw`
         INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
-        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${normalizedIcon}, NOW())
+        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${processedIcon}, NOW())
         ON CONFLICT ("userId", "type", "value") DO NOTHING
       `
     }
@@ -138,7 +152,20 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const e = err as { code?: string }
     if (e?.code === 'P2002') {
-      return NextResponse.json({ error: 'Bookmark already exists' }, { status: 409 })
+      // Find the existing bookmark and return it
+      const existingBookmark = await prisma.bookmark.findFirst({
+        where: {
+          userId: auth.userId,
+          url: url
+        },
+        include: { folder: { select: { id: true, name: true } } }
+      })
+
+      return NextResponse.json({
+        error: 'This URL has already been bookmarked',
+        existingBookmark,
+        message: 'You can edit the existing bookmark instead'
+      }, { status: 409 })
     }
     throw err
   }

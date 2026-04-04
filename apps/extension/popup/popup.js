@@ -237,11 +237,14 @@ function populateCurrentTab() {
   pageReminderInput.value = ''
   pageIconEditor.hidden = true
 
-  if (domain) {
-    pageFavicon.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
-    pageFavicon.alt = ''
-    pageIconFavicon.src = pageFavicon.src
-    pageIconFavicon.alt = ''
+  if (url) {
+    const faviconUrl = getFaviconUrl(url, 32)
+    if (faviconUrl) {
+      pageFavicon.src = faviconUrl
+      pageFavicon.alt = ''
+      pageIconFavicon.src = faviconUrl
+      pageIconFavicon.alt = ''
+    }
   }
 
   updateCurrentIconPreview()
@@ -269,9 +272,18 @@ function updateCurrentIconPreview() {
   const custom = pageIconInput.value.trim()
 
   if (custom) {
-    pageIconValue.hidden = false
-    pageIconFavicon.hidden = true
-    pageIconValue.textContent = custom
+    if (custom.startsWith('http')) {
+      // It's a favicon URL
+      pageIconValue.hidden = true
+      pageIconFavicon.hidden = false
+      pageIconFavicon.src = custom
+      pageIconValue.textContent = ''
+    } else {
+      // It's an emoji
+      pageIconValue.hidden = false
+      pageIconFavicon.hidden = true
+      pageIconValue.textContent = custom
+    }
   } else {
     pageIconValue.hidden = true
     pageIconFavicon.hidden = false
@@ -461,8 +473,11 @@ function renderRecent(bookmarks) {
     li.setAttribute('role', 'listitem')
 
     const iconHtml = bm.icon
-      ? `<span class="recent-icon" aria-hidden="true">${escapeHtml(bm.icon)}</span>`
-      : `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=16"
+      ? bm.icon.startsWith('http')
+        ? `<img src="${escapeAttr(bm.icon)}" alt="" width="14" height="14" class="favicon"
+             onerror="this.src='${getFaviconUrl(bm.url, 16)}'" />`
+        : `<span class="recent-icon" aria-hidden="true">${escapeHtml(bm.icon)}</span>`
+      : `<img src="${getFaviconUrl(bm.url, 16)}"
                alt="" width="14" height="14" class="favicon" onerror="this.style.display='none'" />`
 
     li.innerHTML = `
@@ -563,7 +578,7 @@ async function showEditForm(li, bm) {
 
   form.innerHTML = `
     <div class="edit-page-info">
-      <img class="edit-favicon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="" width="16" height="16" />
+      <img class="edit-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16" />
       <div class="edit-page-text">
         <p class="edit-page-url" title="${bm.url}">${domain}</p>
       </div>
@@ -578,7 +593,7 @@ async function showEditForm(li, bm) {
       <label class="edit-label">Icon</label>
       <div class="edit-icon-picker">
         <div class="edit-icon-preview" aria-live="polite">
-          <img class="edit-icon-favicon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" alt="" width="16" height="16" />
+          <img class="edit-icon-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16" />
           <span class="edit-icon-value" hidden></span>
         </div>
         <button type="button" class="edit-icon-btn" aria-label="Edit icon" title="Edit icon">
@@ -590,7 +605,7 @@ async function showEditForm(li, bm) {
       <div class="edit-icon-editor" hidden>
         <div class="edit-icon-presets" role="listbox" aria-label="Preset icons"></div>
         <div class="edit-icon-editor-row">
-          <input class="edit-icon-input" type="text" maxlength="10" placeholder="custom" autocomplete="off" aria-label="Custom icon" />
+          <input class="edit-icon-input" type="text" placeholder="custom" autocomplete="off" aria-label="Custom icon" />
           <button type="button" class="edit-btn-clear-icon">Reset</button>
           <button type="button" class="edit-btn-close-icon">Done</button>
         </div>
@@ -641,9 +656,17 @@ async function showEditForm(li, bm) {
   function updateIconPreview() {
     const custom = iconInput.value.trim()
     if (custom) {
-      iconValue.textContent = custom
-      iconValue.hidden = false
-      iconFavicon.hidden = true
+      if (custom.startsWith('http')) {
+        // It's a favicon URL
+        iconValue.hidden = true
+        iconFavicon.hidden = false
+        iconFavicon.src = custom
+      } else {
+        // It's an emoji
+        iconValue.textContent = custom
+        iconValue.hidden = false
+        iconFavicon.hidden = true
+      }
     } else {
       iconValue.hidden = true
       iconFavicon.hidden = false
@@ -830,7 +853,15 @@ btnSave.addEventListener('click', async () => {
   btnSave.disabled = true
 
   const title = pageTitleInput.value.trim() || currentTab.title || currentTab.url
-  const icon = pageIconInput.value.trim()
+  const iconInput = pageIconInput.value.trim()
+  let icon = iconInput
+
+  // If no custom icon is set, auto-use the page favicon
+  // getFaviconUrl already filters data: URIs, chrome:// and non-public URLs
+  if (!iconInput) {
+    icon = getFaviconUrl(currentTab.url, 32) || null
+  }
+
   const tags = getSelectedTags()
   const reminderDate = pageReminderInput.value ? new Date(pageReminderInput.value).toISOString() : null
 
@@ -884,7 +915,13 @@ btnCloseIcon.addEventListener('click', () => {
 })
 
 pageIconInput.addEventListener('input', () => {
-  pageIconInput.value = pageIconInput.value.slice(0, 10)
+  const newValue = pageIconInput.value
+  // Allow longer URLs for favicons but limit emoji icons to 10 characters
+  if (newValue.startsWith('favicon:') || newValue.startsWith('http')) {
+    // No length limit for URLs
+  } else {
+    pageIconInput.value = newValue.slice(0, 10) // Limit emoji icons to 10 chars
+  }
   updateCurrentIconPreview()
 })
 
@@ -923,6 +960,47 @@ btnTheme.addEventListener('click', async () => {
 })
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Returns true if the URL is a public internet URL (not localhost/private)
+function isPublicUrl(url) {
+  try {
+    const { hostname, protocol } = new URL(url)
+    if (protocol !== 'http:' && protocol !== 'https:') return false
+    if (hostname === 'localhost') return false
+    if (hostname === '127.0.0.1' || hostname === '::1') return false
+    if (/^192\.168\./.test(hostname)) return false
+    if (/^10\./.test(hostname)) return false
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return false
+    if (hostname.endsWith('.local')) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Get the best available favicon for a URL
+function getFaviconUrl(url, size = 16) {
+  let domain = ''
+  try {
+    domain = new URL(url).hostname
+  } catch {
+    return ''
+  }
+
+  // Try to use current tab's favicon if it matches the domain
+  // Skip data: URIs (too large) and non-public URLs (localhost, private IPs)
+  if (currentTab?.favIconUrl &&
+      currentTab.favIconUrl !== '' &&
+      !currentTab.favIconUrl.startsWith('data:') &&
+      !currentTab.favIconUrl.includes('chrome://') &&
+      isPublicUrl(currentTab.favIconUrl) &&
+      currentTab.url.includes(domain)) {
+    return currentTab.favIconUrl
+  }
+
+  // Fallback to Google's favicon service (always public, never 404)
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`
+}
 
 function escapeHtml(str) {
   return String(str)

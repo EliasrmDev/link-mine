@@ -21,6 +21,7 @@ interface Props {
   onTagRenamed: (oldName: string, newName: string) => Promise<void>
   onTagDeleted: (tagName: string) => Promise<void>
   onIconUpdated: (oldIcon: string, newIcon: string) => Promise<void>
+  onIconDeleted: (icon: string) => Promise<void>
   onTagCreated: (tagName: string) => Promise<void>
   onIconCreated: (icon: string) => Promise<void>
 }
@@ -33,6 +34,7 @@ export function TagsIconsManager({
   onTagRenamed,
   onTagDeleted,
   onIconUpdated,
+  onIconDeleted,
   onTagCreated,
   onIconCreated
 }: Props) {
@@ -158,6 +160,20 @@ export function TagsIconsManager({
       setShowCreateModal(null)
     } catch (error) {
       console.error('Error creating icon:', error)
+    }
+    setLoading(false)
+  }
+
+  const handleDeleteIcon = async () => {
+    if (!deleteConfirm || deleteConfirm.type !== 'icon') return
+
+    setLoading(true)
+    try {
+      await onIconDeleted(deleteConfirm.name)
+      await refreshData()
+      setDeleteConfirm(null)
+    } catch (error) {
+      console.error('Error deleting icon:', error)
     }
     setLoading(false)
   }
@@ -307,7 +323,23 @@ export function TagsIconsManager({
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{iconData.icon}</span>
+                      {iconData.icon.startsWith('http') ? (
+                        <img
+                          src={iconData.icon}
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="rounded"
+                          onError={(e) => {
+                            // Fallback to text if image fails to load
+                            e.currentTarget.style.display = 'none'
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                      ) : (
+                        <span className="text-2xl">{iconData.icon}</span>
+                      )}
+                      <span className="text-2xl hidden">🔖</span>
                       <div className="text-sm">
                         <div className="text-gray-500">
                           {iconData.count > 0
@@ -317,13 +349,22 @@ export function TagsIconsManager({
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setEditingIcon({ old: iconData.icon, new: iconData.icon })}
-                      className="btn-ghost px-3 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400 shrink-0"
-                      disabled={loading}
-                    >
-                      Update
-                    </button>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <button
+                        onClick={() => setEditingIcon({ old: iconData.icon, new: iconData.icon })}
+                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400"
+                        disabled={loading}
+                      >
+                        Update
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm({ type: 'icon', name: iconData.icon })}
+                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-red-600 dark:text-red-400"
+                        disabled={loading}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -427,7 +468,7 @@ export function TagsIconsManager({
                 Cancel
               </button>
               <button
-                onClick={handleDeleteTag}
+                onClick={deleteConfirm.type === 'tag' ? handleDeleteTag : handleDeleteIcon}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
                 disabled={loading}
               >

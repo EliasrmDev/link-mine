@@ -8,7 +8,7 @@ const UpdateSchema = z.object({
   url: z.string().url().optional(),
   title: z.string().min(1).max(500).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
-  icon: z.string().max(10).nullable().optional(),
+  icon: z.string().max(500).nullable().optional(), // Increased limit for favicon URLs
   reminderDate: z.string().datetime().nullable().optional(),
   folderId: z.string().cuid().nullable().optional(),
 })
@@ -47,12 +47,25 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!parsed.success) return badRequest(parsed.error.issues[0].message)
 
   const { folderId, reminderDate, ...rest } = parsed.data
-  const normalizedIcon = rest.icon !== undefined
+
+  // Process icon - handle favicon URLs
+  let processedIcon = rest.icon !== undefined
     ? (rest.icon?.trim() || null)
     : undefined
+
+  if (processedIcon?.startsWith('favicon:')) {
+    // Extract the favicon URL and store just the URL
+    processedIcon = processedIcon.substring(8) // Remove 'favicon:' prefix
+  }
+
+  // Limit emoji icons to 10 chars, but allow longer URLs for favicons
+  if (processedIcon && !processedIcon.startsWith('http')) {
+    processedIcon = processedIcon.slice(0, 10)
+  }
+
   const normalizedRest = {
     ...rest,
-    ...(normalizedIcon !== undefined ? { icon: normalizedIcon } : {}),
+    ...(processedIcon !== undefined ? { icon: processedIcon } : {}),
     ...(rest.tags ? { tags: normalizeTags(rest.tags) } : {}),
   }
 
@@ -87,10 +100,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
-    if (normalizedIcon) {
+    // Only save non-favicon icons as presets (emojis, not URLs)
+    if (processedIcon && !processedIcon.startsWith('http')) {
       await prisma.$executeRaw`
         INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
-        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${normalizedIcon}, NOW())
+        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${processedIcon}, NOW())
         ON CONFLICT ("userId", "type", "value") DO NOTHING
       `
     }

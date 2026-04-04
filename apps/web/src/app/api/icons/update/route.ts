@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
 
 const BodySchema = z.object({
-  oldIcon: z.string().min(1).max(10),
-  newIcon: z.string().min(1).max(10),
+  oldIcon: z.string().min(1).max(500),
+  newIcon: z.string().min(1).max(500),
 })
 
 export async function POST(request: NextRequest) {

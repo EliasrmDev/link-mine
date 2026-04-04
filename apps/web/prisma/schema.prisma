@@ -66,6 +66,7 @@ model User {
 enum PresetType {
   TAG
   ICON
+  FAVICON_CACHE
 }
 
 model UserPreset {
