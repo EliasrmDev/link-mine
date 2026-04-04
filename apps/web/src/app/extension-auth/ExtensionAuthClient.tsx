@@ -17,45 +17,72 @@ declare global {
 interface Props {
   extensionId: string | null
   isValidId: boolean
+  validationError?: string
   userName: string
 }
 
-export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props) {
+export function ExtensionAuthClient({ extensionId, isValidId, validationError = '', userName }: Props) {
   const [status, setStatus] = useState<'connecting' | 'success' | 'error'>('connecting')
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     if (!isValidId) {
       setStatus('error')
-      setErrorMessage('Invalid extension ID.')
+      setErrorMessage(validationError || 'Invalid extension ID.')
       return
     }
 
     async function connect() {
       try {
+        console.log('Starting extension connection process...')
+
         // 1. Get tokens from our API (returns refresh + access token)
-        const res = await fetch('/api/extension/connect', { method: 'POST' })
-        if (!res.ok) throw new Error('Failed to get token')
+        const res = await fetch('/api/extension/connect', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'same-origin'
+        })
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'Unknown error' }))
+          console.error('API request failed:', res.status, errorData)
+          throw new Error(errorData.error || `API request failed: ${res.status}`)
+        }
+
         const data = await res.json()
+        console.log('Tokens received:', { hasToken: !!data.token, hasAccessToken: !!data.accessToken })
 
         // 2. Send tokens to extension via chrome.runtime.sendMessage
         //    We forward both the refresh token and the pre-issued access token
         //    so the extension is immediately ready without a second round-trip.
         if (extensionId && typeof window !== 'undefined' && window.chrome?.runtime) {
+          console.log('Sending message to extension:', extensionId)
+
           window.chrome.runtime.sendMessage(
             extensionId,
             {
-              type:                'LINKMINE_AUTH_TOKEN',
-              token:               data.token,               // backward compat
-              accessToken:         data.accessToken,
+              type: 'LINKMINE_AUTH_TOKEN',
+              token: data.token, // backward compat
+              accessToken: data.accessToken,
               accessTokenExpiresAt: data.accessTokenExpiresAt,
             },
-            () => {
+            (response) => {
               if (window.chrome?.runtime?.lastError) {
                 console.warn('Extension message failed:', window.chrome.runtime.lastError)
+                setStatus('error')
+                setErrorMessage('Extension is not responding. Make sure it\'s installed and enabled.')
+                return
               }
+              console.log('Extension responded:', response)
             },
           )
+        } else {
+          console.warn('Chrome runtime not available or no extension ID')
+          setStatus('error')
+          setErrorMessage('Chrome extension API not available. This only works in Chrome browser.')
+          return
         }
 
         setStatus('success')
@@ -65,8 +92,13 @@ export function ExtensionAuthClient({ extensionId, isValidId, userName }: Props)
           window.close()
         }, 2500)
       } catch (err) {
+        console.error('Connection error:', err)
         setStatus('error')
-        setErrorMessage('Could not connect to the extension. Please try again.')
+        setErrorMessage(
+          err instanceof Error
+            ? err.message
+            : 'Could not connect to the extension. Please try again.'
+        )
       }
     }
 

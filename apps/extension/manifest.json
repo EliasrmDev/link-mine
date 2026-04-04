@@ -11,14 +11,14 @@
   ],
 
   "host_permissions": [
-    "http://localhost:3000/*",
-    "https://linkmine.eliasrm.dev/*"
+    "https://linkmine.eliasrm.dev/*",
+    "http://localhost:3000/*"
   ],
 
   "externally_connectable": {
     "matches": [
-      "http://localhost:3000/*",
-      "https://linkmine.eliasrm.dev/*"
+      "https://linkmine.eliasrm.dev/*",
+      "http://localhost:3000/*"
     ]
   },
 

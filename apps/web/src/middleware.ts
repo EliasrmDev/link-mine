@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server'
  */
 
 const PUBLIC_PAGES = new Set(['/', '/login'])
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/extension/refresh']
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/extension/refresh', '/api/extension/connect']
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],

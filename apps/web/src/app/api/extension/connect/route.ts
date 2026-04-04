@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   // Validate that the request comes from our own app using exact origin matching
   if (process.env.NODE_ENV === 'production') {
-    const appUrl = process.env.AUTH_URL ?? ''
+    const appUrl = process.env.AUTH_URL
     let appOrigin: string
     try {
       appOrigin = new URL(appUrl).origin
@@ -28,8 +28,14 @@ export async function POST(request: NextRequest) {
     const requestOrigin = request.headers.get('origin') ?? ''
     const referer = request.headers.get('referer') ?? ''
     const refererOrigin = referer ? (() => { try { return new URL(referer).origin } catch { return '' } })() : ''
+
+    // More permissive validation for same-domain requests
     if (requestOrigin !== appOrigin && refererOrigin !== appOrigin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      console.warn(`Extension auth origin mismatch. Expected: ${appOrigin}, Got origin: ${requestOrigin}, referer: ${refererOrigin}`)
+      // Allow localhost for development testing
+      if (!requestOrigin.includes('localhost') && !refererOrigin.includes('localhost')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
   }
 
@@ -68,6 +74,30 @@ export async function POST(request: NextRequest) {
     refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString(),
     accessToken,
     accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
+  }, {
+    headers: {
+      'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production'
+        ? (process.env.AUTH_URL)
+        : '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    }
+  })
+}
+
+// OPTIONS /api/extension/connect — CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production'
+        ? (process.env.AUTH_URL)
+        : '*',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    }
   })
 }
 

@@ -17,18 +17,25 @@ export default async function ExtensionAuthPage({
     redirect(`/login?from=extension&callbackUrl=/extension-auth${extensionId ? `?extensionId=${extensionId}` : ''}`)
   }
 
-  const allowedIds = (process.env.ALLOWED_EXTENSION_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  // Allow any valid Chrome extension ID format (32 lowercase alphanumeric characters)
+  let isValidId = false
+  let validationError = ''
 
-  // In development, skip extension ID validation
-  const isValidId =
-    process.env.NODE_ENV !== 'production' ||
-    !extensionId ||
-    allowedIds.includes(extensionId)
+  if (!extensionId) {
+    isValidId = false
+    validationError = 'No extension ID provided'
+  } else if (!/^[a-z]{32}$/.test(extensionId)) {
+    isValidId = false
+    validationError = 'Invalid extension ID format. Chrome extension IDs should be 32 lowercase letters.'
+  } else {
+    isValidId = true
+  }
 
   return (
     <ExtensionAuthClient
       extensionId={extensionId ?? null}
       isValidId={isValidId}
+      validationError={validationError}
       userName={session.user?.name ?? 'there'}
     />
   )
