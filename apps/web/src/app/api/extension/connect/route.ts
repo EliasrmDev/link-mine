@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
   // Validate that the request comes from our own app using exact origin matching
   if (process.env.NODE_ENV === 'production') {
     const appUrl = process.env.AUTH_URL
+    if (!appUrl) {
+      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+    }
     let appOrigin: string
     try {
       appOrigin = new URL(appUrl).origin
@@ -77,8 +80,8 @@ export async function POST(request: NextRequest) {
   }, {
     headers: {
       'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production'
-        ? (process.env.AUTH_URL)
-        : '*',
+        ? (process.env.AUTH_URL ?? 'https://linkmine.eliasrm.dev')
+        : 'http://localhost:3000',
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -92,8 +95,8 @@ export async function OPTIONS(request: NextRequest) {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production'
-        ? (process.env.AUTH_URL)
-        : '*',
+        ? (process.env.AUTH_URL ?? 'https://linkmine.eliasrm.dev')
+        : 'http://localhost:3000',
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
