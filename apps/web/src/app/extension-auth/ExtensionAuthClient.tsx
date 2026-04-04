@@ -7,7 +7,7 @@ declare global {
   interface Window {
     chrome?: {
       runtime?: {
-        sendMessage: (extensionId: string, message: unknown, callback?: () => void) => void
+        sendMessage: (extensionId: string, message: unknown, callback?: (response: { ok: boolean, error?: string } ) => void) => void
         lastError?: unknown
       }
     }
