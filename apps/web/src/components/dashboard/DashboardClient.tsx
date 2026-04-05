@@ -24,6 +24,44 @@ const DEFAULT_FILTERS: BookmarkFilters = {
 
 const SSE_REFRESH_DEBOUNCE_MS = 200
 
+// Helper function to detect if an icon is an automatic favicon
+function isAutomaticFavicon(icon: string, url: string): boolean {
+  if (!icon || !url) return false
+
+  try {
+    const domain = new URL(url).hostname
+
+    // Check if icon is a favicon URL pattern
+    const faviconPatterns = [
+      `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}`,
+      /^https:\/\/[^\/]+\/favicon\.ico$/,
+      /^https:\/\/www\.google\.com\/s2\/favicons/,
+      /^https:\/\/.*\.(ico|png|jpg|jpeg|gif|svg)$/i
+    ]
+
+    // If icon matches any favicon URL pattern, it's automatic
+    for (const pattern of faviconPatterns) {
+      if (pattern instanceof RegExp) {
+        if (pattern.test(icon)) return true
+      } else if (typeof pattern === 'string') {
+        if (icon.includes(pattern)) return true
+      }
+    }
+
+    // If icon is a URL (contains protocol), likely a favicon
+    if (icon.startsWith('http://') || icon.startsWith('https://')) {
+      return true
+    }
+
+    // If icon is a single emoji or short text, it's manual
+    return false
+
+  } catch {
+    // If URL parsing fails, assume it's manual
+    return false
+  }
+}
+
 function loadFilters(): BookmarkFilters {
   if (typeof window === 'undefined') return DEFAULT_FILTERS
   try {
@@ -123,7 +161,9 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   const iconsInUse = useMemo(() => {
     const set = new Set<string>()
     bookmarks.forEach((b) => {
-      if (b.icon) set.add(b.icon)
+      if (b.icon && !isAutomaticFavicon(b.icon, b.url)) {
+        set.add(b.icon)
+      }
     })
     return Array.from(set)
   }, [bookmarks])

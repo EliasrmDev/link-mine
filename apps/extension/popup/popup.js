@@ -227,7 +227,7 @@ function populateCurrentTab() {
 
   const title  = currentTab.title ?? currentTab.url ?? ''
   const url    = currentTab.url   ?? ''
-  const domain = (() => { try { return new URL(url).hostname } catch { return '' } })()
+  const domain = (() => { try { return new URL(url).origin } catch { return '' } })()
 
   pageTitleInput.value = title
   pageUrl.textContent   = domain
@@ -243,6 +243,7 @@ function populateCurrentTab() {
       pageFavicon.src = faviconUrl
       pageFavicon.alt = ''
       pageFavicon.onerror = function() {
+        if (isLocalUrl(url)) { this.style.display = 'none'; return }
         if (!this.src.includes('google.com/s2/favicons')) {
           this.src = getGoogleFaviconUrl(url, 32)
         } else {
@@ -252,6 +253,7 @@ function populateCurrentTab() {
       pageIconFavicon.src = faviconUrl
       pageIconFavicon.alt = ''
       pageIconFavicon.onerror = function() {
+        if (isLocalUrl(url)) { this.style.display = 'none'; return }
         if (!this.src.includes('google.com/s2/favicons')) {
           this.src = getGoogleFaviconUrl(url, 32)
         } else {
@@ -292,8 +294,9 @@ function updateCurrentIconPreview() {
       pageIconFavicon.hidden = false
       pageIconFavicon.src = custom
       pageIconFavicon.onerror = function() {
+        if (isLocalUrl(custom)) { this.style.display = 'none'; return }
         try {
-          const domain = new URL(custom).hostname
+          const domain = new URL(custom).origin
           if (!this.src.includes('google.com/s2/favicons')) {
             this.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
           } else {
@@ -492,7 +495,7 @@ function renderRecent(bookmarks) {
   }
 
   for (const bm of bookmarks) {
-    const domain = (() => { try { return new URL(bm.url).hostname } catch { return '' } })()
+    const domain = (() => { try { return new URL(bm.url).origin } catch { return '' } })()
     const isReminderDue = bm.reminderDate && new Date(bm.reminderDate).getTime() <= Date.now()
     const li = document.createElement('li')
     li.className = `recent-item${isReminderDue ? ' recent-item--reminder' : ''}`
@@ -501,11 +504,11 @@ function renderRecent(bookmarks) {
     const iconHtml = bm.icon
       ? bm.icon.startsWith('http')
         ? `<img src="${escapeAttr(bm.icon)}" alt="" width="14" height="14" class="favicon"
-             onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 16)}'}" />`
+             ${getFaviconOnerrorAttr(bm.url, 16)} />`
         : `<span class="recent-icon" aria-hidden="true">${escapeHtml(bm.icon)}</span>`
       : `<img src="${getFaviconUrl(bm.url, 16)}"
                alt="" width="14" height="14" class="favicon"
-               onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 16)}'}else{this.style.display='none'}" />`
+               ${getFaviconOnerrorAttr(bm.url, 16)} />`
 
     li.innerHTML = `
       ${iconHtml}
@@ -599,14 +602,14 @@ async function showEditForm(li, bm) {
 
   // Extract domain from URL for favicon
   const domain = (() => {
-    try { return new URL(bm.url).hostname }
+    try { return new URL(bm.url).origin }
     catch { return '' }
   })()
 
   form.innerHTML = `
     <div class="edit-page-info">
       <img class="edit-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16"
-           onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 32)}'}" />
+           ${getFaviconOnerrorAttr(bm.url, 32)} />
       <div class="edit-page-text">
         <p class="edit-page-url" title="${bm.url}">${domain}</p>
       </div>
@@ -622,7 +625,7 @@ async function showEditForm(li, bm) {
       <div class="edit-icon-picker">
         <div class="edit-icon-preview" aria-live="polite">
           <img class="edit-icon-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16"
-               onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${getGoogleFaviconUrl(bm.url, 32)}'}" />
+               ${getFaviconOnerrorAttr(bm.url, 32)} />
           <span class="edit-icon-value" hidden></span>
         </div>
         <button type="button" class="edit-icon-btn" aria-label="Edit icon" title="Edit icon">
@@ -990,54 +993,76 @@ btnTheme.addEventListener('click', async () => {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Returns true if the URL is a public internet URL (not localhost/private)
-function isPublicUrl(url) {
-  try {
-    const { hostname, protocol } = new URL(url)
-    if (protocol !== 'http:' && protocol !== 'https:') return false
-    if (hostname === 'localhost') return false
-    if (hostname === '127.0.0.1' || hostname === '::1') return false
-    if (/^192\.168\./.test(hostname)) return false
-    if (/^10\./.test(hostname)) return false
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return false
-    if (hostname.endsWith('.local')) return false
-    return true
-  } catch {
-    return false
-  }
-}
-
 // Get the best available favicon for a URL
 function getFaviconUrl(url, size = 16) {
   let domain = ''
   try {
-    domain = new URL(url).hostname
+    domain = new URL(url).origin
   } catch {
     return ''
   }
 
-  // Try to use current tab's favicon if it matches the domain
-  // Skip data: URIs (too large) and non-public URLs (localhost, private IPs)
+  // For local/private URLs, always use direct favicon.ico.
+  // Chrome's favIconUrl for these pages is a gstatic proxy URL (e.g.
+  // t2.gstatic.com/faviconV2?url=http://localhost) that Google can't
+  // resolve, so it's useless.
+  if (isLocalUrl(url)) {
+    return `${domain}/favicon.ico`
+  }
+
+  // Try to use current tab's favicon if it matches the domain.
+  // Skip data: URIs (too large), chrome:// internals, and any Google/gstatic
+  // favicon proxy URLs — those are Chrome substitutes, not the real icon.
   if (currentTab?.favIconUrl &&
       currentTab.favIconUrl !== '' &&
       !currentTab.favIconUrl.startsWith('data:') &&
       !currentTab.favIconUrl.includes('chrome://') &&
+      !currentTab.favIconUrl.includes('google.com/s2/favicons') &&
+      !currentTab.favIconUrl.includes('gstatic.com/faviconV2') &&
       currentTab.url.includes(domain)) {
     return currentTab.favIconUrl
   }
 
   // Fallback to direct favicon.ico path on domain
-  return `https://${domain}/favicon.ico`
+  return `${domain}/favicon.ico`
 }
 
 // Helper to get Google favicon service URL as fallback
 function getGoogleFaviconUrl(url, size = 16) {
   try {
-    const domain = new URL(url).hostname
+    const domain = new URL(url).origin
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`
   } catch {
     return ''
   }
+}
+
+// Detect local/private network URLs that Google's favicon service cannot reach
+function isLocalUrl(url) {
+  try {
+    const { hostname } = new URL(url)
+    return (
+      hostname === 'localhost' ||
+      hostname.startsWith('127.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.localhost')
+    )
+  } catch {
+    return false
+  }
+}
+
+// Returns the onerror attribute string for a favicon <img>.
+// Local URLs skip Google (it can't reach them) and just hide the image.
+function getFaviconOnerrorAttr(url, size) {
+  if (isLocalUrl(url)) {
+    return `onerror="this.style.display='none'"`
+  }
+  const fallback = getGoogleFaviconUrl(url, size)
+  return `onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${fallback}'}else{this.style.display='none'}"`
 }
 
 function escapeHtml(str) {

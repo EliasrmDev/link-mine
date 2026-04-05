@@ -21,11 +21,11 @@ function normalizeTagsCaseInsensitive(tags: string[]): string[] {
   return result
 }
 
-// Helper to get favicon URL for a domain
+// Helper to get favicon URL for a domain using Google service to avoid CORS issues
 function getFaviconUrl(url: string): string {
   try {
     const domain = new URL(url).hostname
-    return `https://${domain}/favicon.ico`
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
   } catch {
     return ''
   }
@@ -161,7 +161,7 @@ export function BookmarkForm({
         }
       } else {
         if (opts.updateTitle) {
-          const domain = new URL(targetUrl).hostname.replace('www.', '')
+          const domain = new URL(targetUrl).origin.replace('www.', '')
           const fallbackTitle = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1)
           setTitle(fallbackTitle)
         }
@@ -537,7 +537,7 @@ export function BookmarkForm({
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       try {
-                        const domain = new URL(currentFavicon).hostname
+                        const domain = new URL(currentFavicon).origin
                         // Try Google favicon service as fallback
                         if (!target.src.includes('google.com/s2/favicons')) {
                           target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
@@ -550,7 +550,7 @@ export function BookmarkForm({
                     }}
                   />
                   <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                    {(() => { try { return new URL(currentFavicon).hostname } catch { return currentFavicon } })()}
+                    {(() => { try { return new URL(currentFavicon).origin } catch { return currentFavicon } })()}
                   </span>
                 </div>
               </div>
@@ -569,7 +569,7 @@ export function BookmarkForm({
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       try {
-                        const domain = new URL(url).hostname
+                        const domain = new URL(url).origin
                         // Try Google favicon service as fallback
                         if (!target.src.includes('google.com/s2/favicons')) {
                           target.src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`
@@ -586,7 +586,7 @@ export function BookmarkForm({
                     <p className="text-xs text-blue-700 dark:text-blue-300 truncate mt-0.5">
                       {(() => {
                         try {
-                          return new URL(suggestedFavicon || cachedFavicon).hostname
+                          return new URL(suggestedFavicon || cachedFavicon).origin
                         } catch {
                           return ''
                         }

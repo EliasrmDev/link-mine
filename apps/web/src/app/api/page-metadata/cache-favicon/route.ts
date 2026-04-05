@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Extract domain for caching key
-    const domain = new URL(url).hostname
+    const domain = new URL(url).origin
 
     // Use upsert to cache the favicon URL per domain per user
     // This prevents repeated network calls for the same domain
