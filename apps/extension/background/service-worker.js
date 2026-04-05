@@ -22,6 +22,7 @@ import {
   apiFetchDueReminders,
   apiRefreshAccessToken,
   ensureAccessToken,
+  apiFetchBookmarks,
   BASE_URL,
 } from '../shared/api.js'
 
@@ -57,6 +58,68 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
 
   return true // keep message channel open for async sendResponse
 })
+
+// ─── Page Status Detector ────────────────────────────────────────────────────
+
+// Listen to tab updates and tab activation to check bookmark status
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Only check when URL changed and loading is complete
+  if (changeInfo.status === 'complete' && tab.url) {
+    await checkPageBookmarkStatus(tab.url)
+  }
+})
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  const tab = await chrome.tabs.get(activeInfo.tabId).catch(() => null)
+  if (tab?.url) {
+    await checkPageBookmarkStatus(tab.url)
+  }
+})
+
+/**
+ * Check if the current page URL is already bookmarked and update badge accordingly
+ */
+async function checkPageBookmarkStatus(url) {
+  // Skip non-http(s) URLs
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    chrome.action.setBadgeText({ text: '' })
+    return
+  }
+
+  const refreshToken = await getRefreshToken()
+  if (!refreshToken) {
+    chrome.action.setBadgeText({ text: '' })
+    return
+  }
+
+  try {
+    // Search for bookmark with exact URL match
+    const result = await apiFetchBookmarks(refreshToken, { q: url })
+
+    if (result.authError) {
+      await clearAllTokens()
+      chrome.action.setBadgeBackgroundColor({ color: '#ef4444' })
+      chrome.action.setBadgeText({ text: '!' })
+      return
+    }
+
+    // Check if any bookmark matches exactly this URL
+    const exactMatch = result.bookmarks?.some(bookmark => bookmark.url === url)
+
+    if (exactMatch) {
+      // Page is already saved - show green checkmark
+      chrome.action.setBadgeBackgroundColor({ color: '#22c55e' })
+      chrome.action.setBadgeText({ text: '✓' })
+    } else {
+      // Page is not saved - show orange plus sign
+      chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' })
+      chrome.action.setBadgeText({ text: '+' })
+    }
+  } catch (error) {
+    // Network error or other issue - clear badge
+    chrome.action.setBadgeText({ text: '' })
+  }
+}
 
 // ─── Keyboard command: save current tab ──────────────────────────────────────
 
@@ -103,7 +166,16 @@ chrome.commands.onCommand.addListener(async (command) => {
 
   if (result.ok) {
     showTabNotification(tab.id, `Saved: ${bookmark.title}`, 'success')
-    flashBadge('✓', '#22c55e', 2000)
+
+    // Update page status badge immediately to show it's now saved
+    chrome.action.setBadgeBackgroundColor({ color: '#22c55e' })
+    chrome.action.setBadgeText({ text: '✓' })
+
+    // Flash success briefly then return to normal status
+    setTimeout(async () => {
+      const reminderCount = await getReminderCount()
+      updateReminderBadge(reminderCount)
+    }, 2000)
 
     // Broadcast to web app for real-time sync
     try {
@@ -124,7 +196,15 @@ chrome.commands.onCommand.addListener(async (command) => {
     } catch {}
   } else if (result.status === 409) {
     showTabNotification(tab.id, 'Page already saved', 'info')
-    flashBadge('✓', '#f59e0b', 2000)
+
+    // Update page status badge to show it's already saved
+    chrome.action.setBadgeBackgroundColor({ color: '#22c55e' })
+    chrome.action.setBadgeText({ text: '✓' })
+
+    setTimeout(async () => {
+      const reminderCount = await getReminderCount()
+      updateReminderBadge(reminderCount)
+    }, 2000)
   } else {
     const errorMsg = result.error || 'Failed to save page'
     showTabNotification(tab.id, `✕ ${errorMsg}`, 'error')
@@ -221,11 +301,22 @@ async function checkReminders() {
 
 function updateReminderBadge(count) {
   if (count > 0) {
+    // Reminders take priority - show reminder count
     chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' })
     chrome.action.setBadgeText({ text: String(count) })
   } else {
-    chrome.action.setBadgeBackgroundColor({ color: '#00000000' })
-    chrome.action.setBadgeText({ text: '' })
+    // No reminders - check page bookmark status for current tab
+    chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+      if (tab?.url) {
+        checkPageBookmarkStatus(tab.url)
+      } else {
+        chrome.action.setBadgeBackgroundColor({ color: '#00000000' })
+        chrome.action.setBadgeText({ text: '' })
+      }
+    }).catch(() => {
+      chrome.action.setBadgeBackgroundColor({ color: '#00000000' })
+      chrome.action.setBadgeText({ text: '' })
+    })
   }
 }
 
