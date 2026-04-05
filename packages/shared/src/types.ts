@@ -24,6 +24,14 @@ export interface Bookmark {
   updatedAt: string
 }
 
+export interface TreeNodeData {
+  id: string;
+  title: string;
+  href?: string;
+  children?: TreeNodeData[];
+  defaultExpanded?: boolean;
+}
+
 // ─── API request / response shapes ───────────────────────────────────────────
 
 export interface CreateBookmarkInput {

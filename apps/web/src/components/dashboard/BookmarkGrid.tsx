@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Globe, Link } from 'lucide-react'
-import type { Bookmark, Folder, DomainGroupedBookmark, DomainGroupingPreference } from '@linkmine/shared'
+import { ChevronDown, ChevronRight, Globe, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
+import type { Bookmark, Folder, DomainGroupedBookmark, DomainGroupingPreference, TreeNodeData } from '@linkmine/shared'
+import TreeView from '@/components/dashboard/TreeView'
 
 const STALE_DAYS = 30
 
@@ -182,6 +183,65 @@ function isRootDomain(url: string): boolean {
   } catch {
     return false
   }
+}
+
+// Build a URL-path-based tree from a grouped bookmark (parent + flat children)
+function buildTreeFromBookmarks(parent: DomainGroupedBookmark): TreeNodeData[] {
+  const children = parent.children ?? []
+
+  // Root node — always expanded
+  const root: TreeNodeData = {
+    id: parent.id,
+    title: parent.title,
+    href: parent.url,
+    defaultExpanded: true,
+  }
+
+  if (!children.length) return [root]
+
+  // Track created nodes by URL so we can append grandchildren later
+  const nodeByUrl = new Map<string, TreeNodeData>()
+  nodeByUrl.set(parent.url, root)
+
+  // Sort by ascending path depth so parents are created before their children
+  const sorted = [...children].sort((a, b) => {
+    try {
+      const aD = new URL(a.url).pathname.split('/').filter(Boolean).length
+      const bD = new URL(b.url).pathname.split('/').filter(Boolean).length
+      return aD - bD
+    } catch { return 0 }
+  })
+
+  for (const child of sorted) {
+    const node: TreeNodeData = { id: child.id, title: child.title, href: child.url }
+
+    // Find the closest ancestor whose path is a prefix of this child's path
+    let bestParentNode = root
+    let bestMatchLen = 0
+
+    try {
+      const childUrl = new URL(child.url)
+      const childPath = childUrl.pathname
+
+      for (const [url, treeNode] of nodeByUrl) {
+        try {
+          const pUrl = new URL(url)
+          if (pUrl.origin !== childUrl.origin) continue
+          const pPath = pUrl.pathname.endsWith('/') ? pUrl.pathname : pUrl.pathname + '/'
+          if (childPath.startsWith(pPath) && pPath.length > bestMatchLen) {
+            bestMatchLen = pPath.length
+            bestParentNode = treeNode
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+
+    if (!bestParentNode.children) bestParentNode.children = []
+    bestParentNode.children.push(node)
+    nodeByUrl.set(child.url, node)
+  }
+
+  return [root]
 }
 
 // Debounce function for API calls
@@ -441,59 +501,35 @@ function BookmarkCard({
         >
           {/* Header with expand/collapse control */}
           <div className="p-4 pb-2">
-            {/* Top row: Domain info and Ungroup button */}
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex items-center gap-1 w-full">
-                  <button
-                    onClick={onToggleExpansion}
-                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                  >
-                    {expanded ? (
-                      <ChevronDown className="w-4 h-4" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4" />
-                    )}
-                    <Globe className="w-4 h-4" />
-                  </button>
-
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    {domain}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 w-full">
-                  <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full">
-                    {(bookmark.children?.length || 0) + 1} links
-                  </span>
-
-                  {/* Ungroup button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleGrouping?.(false)
-                    }}
-                    disabled={loadingPreferences}
-                    className="border px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 shrink-0"
-                    title="Ungroup these bookmarks"
-                  >
-                    {loadingPreferences ? '...' : 'Ungroup'}
-                  </button>
-                </div>
-              </div>
-
+            {/* Top row: Domain info */}
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                onClick={onToggleExpansion}
+                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                {expanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+                <Globe className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                {domain}
+              </span>
+              <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full">
+                {(bookmark.children?.length || 0) + 1} links
+              </span>
             </div>
 
-            {/* Bottom row: Parent link preview */}
-            <div className="pl-6">
-              <a
-                href={bookmark.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackAccess(bookmark.id)}
-                className="block truncate text-sm text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
-              >
-                {bookmark.title}
-              </a>
+            {/* Bottom row: Link tree (TreeView — manages its own expand state) */}
+            <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+              <div className="p-2">
+                <TreeView
+                  nodes={buildTreeFromBookmarks(bookmark)}
+                  label={`Links from ${domain}`}
+                />
+              </div>
             </div>
           </div>
 
@@ -521,6 +557,37 @@ function BookmarkCard({
               </div>
             </div>
           )}
+
+          {/* Footer: group actions */}
+          <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-gray-100 dark:border-gray-700">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleGrouping?.(false)
+              }}
+              disabled={loadingPreferences}
+              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+              title="Ungroup these bookmarks"
+            >
+              <Ungroup className="h-3.5 w-3.5" />
+              Ungroup
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                // Delete parent + all children
+                bookmark.children?.forEach((child) => onDelete(child.id))
+                onDelete(bookmark.id)
+              }}
+              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-red-200 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+              title={`Delete all ${(bookmark.children?.length || 0) + 1} bookmarks from ${domain}`}
+              aria-label={`Delete all bookmarks from ${domain}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          </div>
         </div>
       </li>
     )
@@ -637,28 +704,22 @@ function BookmarkCard({
               className="rounded p-1 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 disabled:opacity-50"
               title={`Group with other ${domain} bookmarks`}
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
+              <Group className="h-5 w-5" />
             </button>
           )}
           <button
             onClick={() => onEdit(bookmark)}
             aria-label={`Edit bookmark: ${bookmark.title}`}
-            className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="rounded p-1 hover:bg-yellow-50 hover:text-yellow-300 dark:hover:bg-gray-700"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+            <SquarePen className="h-5 w-5" />
           </button>
           <button
             onClick={() => onDelete(bookmark.id)}
             aria-label={`Delete bookmark: ${bookmark.title}`}
             className="rounded p-1 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+            <Trash2 className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -692,7 +753,6 @@ function NestedBookmarkItem({
       <div className="flex items-start gap-3">
         <div className="flex items-center gap-2">
           <Link className="w-3 h-3 text-gray-400" />
-          {isParent && <span className="text-xs font-medium text-blue-600 dark:text-blue-400">MAIN</span>}
         </div>
 
         <div className="min-w-0 flex-1">

@@ -446,13 +446,13 @@ function FolderItem({
         </button>
 
         {/* Context menu trigger */}
-        <div className="relative opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+        <div className="relative">
           <button
             onClick={() => setMenuOpen((o) => !o)}
             aria-label={`Folder options for ${folder.name}`}
             aria-haspopup="true"
             aria-expanded={menuOpen}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="5" cy="12" r="1.5" />
