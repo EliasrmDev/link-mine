@@ -1,6 +1,8 @@
 'use client'
 
-import type { Bookmark, Folder } from '@linkmine/shared'
+import { useState, useEffect } from 'react'
+import { ChevronDown, ChevronRight, Globe, Link } from 'lucide-react'
+import type { Bookmark, Folder, DomainGroupedBookmark, DomainGroupingPreference } from '@linkmine/shared'
 
 const STALE_DAYS = 30
 
@@ -96,6 +98,96 @@ function trackAccess(id: string) {
   fetch(`/api/bookmarks/${id}/access`, { method: 'PATCH' }).catch(() => {})
 }
 
+// Group bookmarks by domain for nested display
+function groupBookmarksByDomain(
+  bookmarks: Bookmark[],
+  domainPreferences: Record<string, boolean>
+): { grouped: DomainGroupedBookmark[]; individual: DomainGroupedBookmark[] } {
+  const domainGroups = new Map<string, Bookmark[]>()
+  const ungrouped: DomainGroupedBookmark[] = []
+
+  // Group bookmarks by domain
+  for (const bookmark of bookmarks) {
+    try {
+      const url = new URL(bookmark.url)
+      const domain = url.hostname
+
+      // Check if this domain should be grouped (default: true)
+      const shouldGroup = domainPreferences[domain] !== false
+
+      if (shouldGroup) {
+        if (!domainGroups.has(domain)) {
+          domainGroups.set(domain, [])
+        }
+        domainGroups.get(domain)!.push(bookmark)
+      } else {
+        ungrouped.push({ ...bookmark, domain })
+      }
+    } catch {
+      // Invalid URL - treat as ungrouped
+      ungrouped.push({ ...bookmark, domain: '' })
+    }
+  }
+
+  const grouped: DomainGroupedBookmark[] = []
+  const individual: DomainGroupedBookmark[] = []
+
+  // Convert grouped domains to parent/child structure
+  for (const [domain, domainBookmarks] of domainGroups) {
+    if (domainBookmarks.length < 2) {
+      // Single bookmark - treat as individual
+      individual.push(...domainBookmarks.map(b => ({ ...b, domain })))
+    } else {
+      // Multiple bookmarks - create parent with children
+      const sortedBookmarks = domainBookmarks.sort((a, b) => {
+        // Prioritize homepage URLs (root domain)
+        const aIsRoot = isRootDomain(a.url)
+        const bIsRoot = isRootDomain(b.url)
+
+        if (aIsRoot && !bIsRoot) return -1
+        if (!aIsRoot && bIsRoot) return 1
+
+        // Sort by creation date (newest first)
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      })
+
+      const parent = sortedBookmarks[0]
+      const children = sortedBookmarks.slice(1)
+
+      grouped.push({
+        ...parent,
+        domain,
+        isParent: true,
+        children,
+      })
+    }
+  }
+
+  return {
+    grouped,
+    individual: [...individual, ...ungrouped]
+  }
+}
+
+function isRootDomain(url: string): boolean {
+  try {
+    const urlObj = new URL(url)
+    const path = urlObj.pathname
+    return path === '/' || path === ''
+  } catch {
+    return false
+  }
+}
+
+// Debounce function for API calls
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  let timeout: NodeJS.Timeout
+  return ((...args: any[]) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }) as T
+}
+
 interface Props {
   bookmarks: Bookmark[]
   total: number
@@ -107,6 +199,58 @@ interface Props {
 }
 
 export function BookmarkGrid({ bookmarks, total, loading, onEdit, onDelete, showOldLinks }: Props) {
+  const [domainPreferences, setDomainPreferences] = useState<Record<string, boolean>>({})
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [loadingPreferences, setLoadingPreferences] = useState(false)
+
+  // Load domain grouping preferences
+  useEffect(() => {
+    fetchDomainPreferences()
+  }, [])
+
+  const fetchDomainPreferences = async () => {
+    try {
+      const response = await fetch('/api/bookmarks/domain-grouping')
+      if (response.ok) {
+        const preferences = await response.json()
+        setDomainPreferences(preferences)
+      }
+    } catch (error) {
+      console.error('Failed to fetch domain preferences:', error)
+    }
+  }
+
+  const updateDomainGrouping = debounce(async (domain: string, grouped: boolean) => {
+    setLoadingPreferences(true)
+    try {
+      const response = await fetch('/api/bookmarks/domain-grouping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, grouped }),
+      })
+
+      if (response.ok) {
+        setDomainPreferences(prev => ({ ...prev, [domain]: grouped }))
+      }
+    } catch (error) {
+      console.error('Failed to update domain grouping:', error)
+    } finally {
+      setLoadingPreferences(false)
+    }
+  }, 300)
+
+  const toggleGroupExpansion = (domain: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(domain)) {
+        newSet.delete(domain)
+      } else {
+        newSet.add(domain)
+      }
+      return newSet
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20" aria-live="polite" aria-busy="true">
@@ -131,25 +275,75 @@ export function BookmarkGrid({ bookmarks, total, loading, onEdit, onDelete, show
   const staleBookmarks = showOldLinks ? bookmarks.filter(isStale) : []
   const mainBookmarks = showOldLinks ? bookmarks.filter((b) => !isStale(b)) : bookmarks
 
+  // Group bookmarks by domain for separated display
+  const { grouped: groupedBookmarks, individual: individualBookmarks } = groupBookmarksByDomain(mainBookmarks, domainPreferences)
+  const { grouped: groupedStaleBookmarks, individual: individualStaleBookmarks } = showOldLinks ? groupBookmarksByDomain(staleBookmarks, domainPreferences) : { grouped: [], individual: [] }
+
   return (
     <div>
       <section aria-label={`Bookmarks (${total} total)`}>
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400" aria-live="polite">
           {total} {total === 1 ? 'bookmark' : 'bookmarks'}
         </p>
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
-          {mainBookmarks.map((bookmark) => (
-            <BookmarkCard
-              key={bookmark.id}
-              bookmark={bookmark}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
-        </ul>
+
+        {/* Grouped Bookmarks Section */}
+        {groupedBookmarks.length > 0 && (
+          <div className="mb-8">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Grouped by Domain
+              </span>
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                {groupedBookmarks.reduce((sum, group) => sum + 1 + (group.children?.length || 0), 0)} links
+              </span>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+              {groupedBookmarks.map((bookmark) => (
+                <BookmarkCard
+                  key={bookmark.id}
+                  bookmark={bookmark}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  expanded={expandedGroups.has(bookmark.domain)}
+                  onToggleExpansion={() => toggleGroupExpansion(bookmark.domain)}
+                  onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
+                  loadingPreferences={loadingPreferences}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Individual Bookmarks Section */}
+        {individualBookmarks.length > 0 && (
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Individual Links
+              </span>
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                {individualBookmarks.length} links
+              </span>
+            </div>
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+              {individualBookmarks.map((bookmark) => (
+                <BookmarkCard
+                  key={bookmark.id}
+                  bookmark={bookmark}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  expanded={false}
+                  onToggleExpansion={() => {}}
+                  onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
+                  loadingPreferences={loadingPreferences}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
-      {staleBookmarks.length > 0 && (
+      {(groupedStaleBookmarks.length > 0 || individualStaleBookmarks.length > 0) && (
         <section className="mt-10" aria-label="You may want to revisit these">
           <div className="mb-3 flex items-center gap-2">
             <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -159,16 +353,48 @@ export function BookmarkGrid({ bookmarks, total, loading, onEdit, onDelete, show
               not opened in {STALE_DAYS}+ days
             </span>
           </div>
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 opacity-70" role="list">
-            {staleBookmarks.map((bookmark) => (
-              <BookmarkCard
-                key={bookmark.id}
-                bookmark={bookmark}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            ))}
-          </ul>
+
+          {/* Stale Grouped Bookmarks */}
+          {groupedStaleBookmarks.length > 0 && (
+            <div className="mb-6 opacity-70">
+              <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">Grouped</div>
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+                {groupedStaleBookmarks.map((bookmark) => (
+                  <BookmarkCard
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    expanded={expandedGroups.has(bookmark.domain)}
+                    onToggleExpansion={() => toggleGroupExpansion(bookmark.domain)}
+                    onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
+                    loadingPreferences={loadingPreferences}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Stale Individual Bookmarks */}
+          {individualStaleBookmarks.length > 0 && (
+            <div className="opacity-70">
+              <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">Individual</div>
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+                {individualStaleBookmarks.map((bookmark) => (
+                  <BookmarkCard
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    expanded={false}
+                    onToggleExpansion={() => {}}
+                    onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
+                    loadingPreferences={loadingPreferences}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
     </div>
@@ -179,10 +405,18 @@ function BookmarkCard({
   bookmark,
   onEdit,
   onDelete,
+  expanded = false,
+  onToggleExpansion,
+  onToggleGrouping,
+  loadingPreferences = false,
 }: {
-  bookmark: Bookmark
+  bookmark: DomainGroupedBookmark
   onEdit: (b: Bookmark) => void
   onDelete: (id: string) => void
+  expanded?: boolean
+  onToggleExpansion?: () => void
+  onToggleGrouping?: (grouped: boolean) => void
+  loadingPreferences?: boolean
 }) {
   const domain = (() => {
     try { return new URL(bookmark.url).hostname } catch { return '' }
@@ -191,7 +425,99 @@ function BookmarkCard({
   const favicon = getSmartFaviconUrl(bookmark.url, domain)
   const due = isReminderDue(bookmark)
   const upcoming = isReminderUpcoming(bookmark)
+  const hasChildren = bookmark.isParent && bookmark.children && bookmark.children.length > 0
 
+  // Parent bookmark with children (grouped)
+  if (hasChildren) {
+    return (
+      <li className="space-y-1">
+        {/* Parent bookmark card */}
+        <div
+          className={`card group flex flex-col transition hover:shadow-md border-l-4 border-l-blue-500 ${
+            due ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
+          }`}
+        >
+          {/* Header with expand/collapse control */}
+          <div className="flex items-start gap-3 p-4 pb-2">
+            <button
+              onClick={onToggleExpansion}
+              className="mt-1 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              {expanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+              <Globe className="w-4 h-4" />
+            </button>
+
+            {/* Domain info */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  {domain}
+                </span>
+                <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full">
+                  {(bookmark.children?.length || 0) + 1} links
+                </span>
+              </div>
+
+              {/* Parent link preview */}
+              <a
+                href={bookmark.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackAccess(bookmark.id)}
+                className="block truncate text-sm text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+              >
+                {bookmark.title}
+              </a>
+            </div>
+
+            {/* Ungroup button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleGrouping?.(false)
+              }}
+              disabled={loadingPreferences}
+              className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+              title="Ungroup these bookmarks"
+            >
+              {loadingPreferences ? '...' : 'Ungroup'}
+            </button>
+          </div>
+
+          {/* Expanded children */}
+          {expanded && (
+            <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+              <div className="space-y-2">
+                {/* Parent bookmark as first item */}
+                <NestedBookmarkItem
+                  bookmark={bookmark}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  isParent
+                />
+
+                {/* Children bookmarks */}
+                {bookmark.children?.map((child) => (
+                  <NestedBookmarkItem
+                    key={child.id}
+                    bookmark={child}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </li>
+    )
+  }
+
+  // Regular single bookmark card
   return (
     <li
       className={`card group flex flex-col p-4 transition hover:shadow-md ${
@@ -314,5 +640,104 @@ function BookmarkCard({
         </div>
       </div>
     </li>
+  )
+}
+
+// Nested bookmark item component for grouped bookmarks
+function NestedBookmarkItem({
+  bookmark,
+  onEdit,
+  onDelete,
+  isParent = false,
+}: {
+  bookmark: Bookmark
+  onEdit: (b: Bookmark) => void
+  onDelete: (id: string) => void
+  isParent?: boolean
+}) {
+  const domain = (() => {
+    try { return new URL(bookmark.url).hostname } catch { return '' }
+  })()
+
+  const due = isReminderDue(bookmark)
+  const upcoming = isReminderUpcoming(bookmark)
+
+  return (
+    <div className={`group p-3 rounded-md border transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
+      isParent ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'border-gray-200 dark:border-gray-600'
+    }`}>
+      <div className="flex items-start gap-3">
+        <div className="flex items-center gap-2">
+          <Link className="w-3 h-3 text-gray-400" />
+          {isParent && <span className="text-xs font-medium text-blue-600 dark:text-blue-400">MAIN</span>}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <a
+            href={bookmark.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackAccess(bookmark.id)}
+            className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
+          >
+            {bookmark.title}
+          </a>
+          <p className="mt-0.5 truncate text-xs text-gray-400">
+            {bookmark.url.replace(`https://${domain}`, '').replace(`http://${domain}`, '') || '/'}
+          </p>
+
+          {/* Compact tags */}
+          {bookmark.tags.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {bookmark.tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-600 dark:text-gray-300"
+                >
+                  {tag}
+                </span>
+              ))}
+              {bookmark.tags.length > 3 && (
+                <span className="text-xs text-gray-500">+{bookmark.tags.length - 3}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {(due || upcoming) && (
+            <span
+              className={`shrink-0 rounded px-1 py-0.5 text-xs font-semibold ${
+                due
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                  : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
+              }`}
+            >
+              {due ? 'Due' : 'Soon'}
+            </span>
+          )}
+
+          <button
+            onClick={() => onEdit(bookmark)}
+            className="opacity-0 group-hover:opacity-100 rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity"
+            aria-label={`Edit bookmark: ${bookmark.title}`}
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+
+          <button
+            onClick={() => onDelete(bookmark.id)}
+            className="opacity-0 group-hover:opacity-100 rounded p-1 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/20 transition-opacity"
+            aria-label={`Delete bookmark: ${bookmark.title}`}
+          >
+            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

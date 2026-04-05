@@ -48,19 +48,20 @@ model VerificationToken {
 // ─── Application models ───────────────────────────────────────────────────────
 
 model User {
-  id             String           @id @default(cuid())
-  name           String?
-  email          String?          @unique
-  emailVerified  DateTime?
-  image          String?
-  accounts       Account[]
-  sessions       Session[]
-  folders        Folder[]
-  bookmarks      Bookmark[]
-  presets        UserPreset[]
-  extensionTokens ExtensionToken[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id               String             @id @default(cuid())
+  name             String?
+  email            String?            @unique
+  emailVerified    DateTime?
+  image            String?
+  accounts         Account[]
+  sessions         Session[]
+  folders          Folder[]
+  bookmarks        Bookmark[]
+  presets          UserPreset[]
+  preferences      UserPreference[]
+  extensionTokens  ExtensionToken[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 }
 
 enum PresetType {
@@ -79,6 +80,19 @@ model UserPreset {
 
   @@unique([userId, type, value])
   @@index([userId, type])
+}
+
+model UserPreference {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key    String
+  value  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@index([userId])
 }
 
 model Folder {

@@ -75,3 +75,16 @@ export interface PaginatedBookmarks {
   page: number
   pageSize: number
 }
+
+// ─── Domain-based nested links system ────────────────────────────────────────
+
+export interface DomainGroupedBookmark extends Bookmark {
+  isParent?: boolean
+  children?: Bookmark[]
+  domain: string
+}
+
+export interface DomainGroupingPreference {
+  domain: string
+  grouped: boolean
+}

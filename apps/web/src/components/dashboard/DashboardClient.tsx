@@ -495,6 +495,9 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
   // Get current section name for mobile label
   const getCurrentSectionName = (): string => {
+    if (activeView === 'tags-icons') {
+      return 'Tags & Icons'
+    }
     if (folderHierarchy.length > 0) {
       const current = folderHierarchy[folderHierarchy.length - 1]
       return current.name
@@ -566,7 +569,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
           </span>
         </div>
 
-        {activeView === 'bookmarks' && (
+        {(activeView === 'bookmarks') && (
           <FilterBar
             filters={filters}
             allTags={allTags}

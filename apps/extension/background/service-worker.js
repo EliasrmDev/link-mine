@@ -107,13 +107,11 @@ async function checkPageBookmarkStatus(url) {
     const exactMatch = result.bookmarks?.some(bookmark => bookmark.url === url)
 
     if (exactMatch) {
-      // Page is already saved - show green checkmark
-      chrome.action.setBadgeBackgroundColor({ color: '#22c55e' })
-      chrome.action.setBadgeText({ text: '✓' })
+      // Page is already saved - show animated green checkmark
+      animatedBadgeFlash('✓', '#22c55e', '#10b981', 3)
     } else {
-      // Page is not saved - show orange plus sign
-      chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' })
-      chrome.action.setBadgeText({ text: '+' })
+      // Page is not saved - show animated orange plus sign
+      animatedBadgeFlash('+', '#f59e0b', '#ea580c', 3)
     }
   } catch (error) {
     // Network error or other issue - clear badge
@@ -167,15 +165,14 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (result.ok) {
     showTabNotification(tab.id, `Saved: ${bookmark.title}`, 'success')
 
-    // Update page status badge immediately to show it's now saved
-    chrome.action.setBadgeBackgroundColor({ color: '#22c55e' })
-    chrome.action.setBadgeText({ text: '✓' })
+    // Update page status badge with animated success
+    animatedBadgeFlash('✓', '#22c55e', '#10b981', 2)
 
-    // Flash success briefly then return to normal status
+    // Return to normal status after animation
     setTimeout(async () => {
       const reminderCount = await getReminderCount()
       updateReminderBadge(reminderCount)
-    }, 2000)
+    }, 3000)
 
     // Broadcast to web app for real-time sync
     try {
@@ -197,14 +194,13 @@ chrome.commands.onCommand.addListener(async (command) => {
   } else if (result.status === 409) {
     showTabNotification(tab.id, 'Page already saved', 'info')
 
-    // Update page status badge to show it's already saved
-    chrome.action.setBadgeBackgroundColor({ color: '#22c55e' })
-    chrome.action.setBadgeText({ text: '✓' })
+    // Update page status badge with animated success (orange tint for "already saved")
+    animatedBadgeFlash('✓', '#f59e0b', '#ea580c', 2)
 
     setTimeout(async () => {
       const reminderCount = await getReminderCount()
       updateReminderBadge(reminderCount)
-    }, 2000)
+    }, 3000)
   } else {
     const errorMsg = result.error || 'Failed to save page'
     showTabNotification(tab.id, `✕ ${errorMsg}`, 'error')
@@ -301,9 +297,8 @@ async function checkReminders() {
 
 function updateReminderBadge(count) {
   if (count > 0) {
-    // Reminders take priority - show reminder count
-    chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' })
-    chrome.action.setBadgeText({ text: String(count) })
+    // Reminders take priority - show reminder count with pulse animation
+    animatedBadgeFlash(String(count), '#f59e0b', '#ea580c', 2)
   } else {
     // No reminders - check page bookmark status for current tab
     chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
@@ -328,6 +323,33 @@ function flashBadge(text, color, durationMs) {
   setTimeout(() => {
     getReminderCount().then(updateReminderBadge)
   }, durationMs)
+}
+
+/**
+ * Animated badge with pulsing effect - more noticeable visual feedback
+ */
+function animatedBadgeFlash(text, color1, color2, pulses = 3) {
+  let currentPulse = 0
+  const interval = 400 // milliseconds between pulses
+
+  const pulse = () => {
+    if (currentPulse >= pulses * 2) {
+      // Animation complete - set final state
+      chrome.action.setBadgeBackgroundColor({ color: color1 })
+      chrome.action.setBadgeText({ text })
+      return
+    }
+
+    // Alternate between colors for pulsing effect
+    const isEvenPulse = currentPulse % 2 === 0
+    chrome.action.setBadgeBackgroundColor({ color: isEvenPulse ? color1 : color2 })
+    chrome.action.setBadgeText({ text })
+
+    currentPulse++
+    setTimeout(pulse, interval)
+  }
+
+  pulse()
 }
 
 // ─── On install / update ─────────────────────────────────────────────────────
