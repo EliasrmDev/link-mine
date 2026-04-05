@@ -84,6 +84,7 @@ interface Props {
   initialFolders: Folder[]
   initialTagsWithCounts: Array<{ name: string; count: number }>
   initialIconsWithCounts: Array<{ icon: string; count: number }>
+  initialDomainPreferences: Record<string, boolean>
   user: { name: string; image: string | null }
 }
 
@@ -100,10 +101,11 @@ function countBookmarksInFolders(folders: Folder[]): number {
   return folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
 }
 
-export function DashboardClient({ initialBookmarks, initialTotal, initialFolders, initialTagsWithCounts, initialIconsWithCounts, user }: Props) {
+export function DashboardClient({ initialBookmarks, initialTotal, initialFolders, initialTagsWithCounts, initialIconsWithCounts, initialDomainPreferences, user }: Props) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
   const [total, setTotal] = useState(initialTotal)
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
+  const [domainPreferences, setDomainPreferences] = useState<Record<string, boolean>>(initialDomainPreferences)
   const [unsortedCount, setUnsortedCount] = useState(
     Math.max(initialTotal - countBookmarksInFolders(initialFolders), 0),
   )
@@ -217,12 +219,25 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     }
   }, [])
 
+  const fetchDomainPreferences = useCallback(async () => {
+    try {
+      const response = await fetch('/api/bookmarks/domain-grouping')
+      if (response.ok) {
+        const preferences = await response.json()
+        setDomainPreferences(preferences)
+      }
+    } catch (error) {
+      console.error('Failed to fetch domain preferences:', error)
+    }
+  }, [])
+
   const refreshFromServer = useCallback(async () => {
     await Promise.all([
       fetchBookmarks({ folderId: selectedFolderId, q: query }),
       fetchFolders(),
+      fetchDomainPreferences(),
     ])
-  }, [fetchBookmarks, fetchFolders, selectedFolderId, query])
+  }, [fetchBookmarks, fetchFolders, fetchDomainPreferences, selectedFolderId, query])
 
   // Navigate to a folder and update breadcrumbs
   const navigateToFolder = useCallback((folderId: string | null | 'all', folderName?: string) => {
@@ -322,6 +337,10 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   const handleFiltersReset = () => {
     handleFiltersChange(DEFAULT_FILTERS)
   }
+
+  const handleDomainPreferenceChange = useCallback((domain: string, grouped: boolean) => {
+    setDomainPreferences(prev => ({ ...prev, [domain]: grouped }))
+  }, [])
 
   const handleBookmarkSaved = async () => {
     setBookmarkForm({ open: false })
@@ -606,6 +625,8 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
                 total={total}
                 loading={loading}
                 folders={folders}
+                domainPreferences={domainPreferences}
+                onDomainPreferenceChange={handleDomainPreferenceChange}
                 onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
                 onDelete={handleDeleteBookmark}
                 showOldLinks={showOldLinks}

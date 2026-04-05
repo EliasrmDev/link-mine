@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const userId = session!.user!.id as string
 
   // Fetch initial data server-side — no loading spinner on first render
-  const [foldersFlat, bookmarks, total] = await Promise.all([
+  const [foldersFlat, bookmarks, total, domainPreferences] = await Promise.all([
     prisma.folder.findMany({
       where: { userId },
       include: { _count: { select: { bookmarks: true } } },
@@ -23,6 +23,13 @@ export default async function DashboardPage() {
       take: 20,
     }),
     prisma.bookmark.count({ where: { userId } }),
+    // Fetch domain grouping preferences
+    prisma.userPreference.findMany({
+      where: {
+        userId,
+        key: { startsWith: 'domain_grouping:' },
+      },
+    }),
   ])
 
   const [presets, rawTagData] = await Promise.all([
@@ -95,6 +102,13 @@ export default async function DashboardPage() {
     count: iconCountMap.get(icon) || 0
   })).sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
 
+  // Process domain preferences
+  const processedDomainPreferences = domainPreferences.reduce((acc: Record<string, boolean>, pref) => {
+    const domain = pref.key.replace('domain_grouping:', '')
+    acc[domain] = pref.value !== 'false' // Default to true (grouped)
+    return acc
+  }, {})
+
   return (
     <DashboardClient
       initialBookmarks={serializedBookmarks}
@@ -102,6 +116,7 @@ export default async function DashboardPage() {
       initialFolders={folders}
       initialTagsWithCounts={initialTags}
       initialIconsWithCounts={initialIcons}
+      initialDomainPreferences={processedDomainPreferences}
       user={{ name: session!.user?.name ?? '', image: session!.user?.image ?? null }}
     />
   )
