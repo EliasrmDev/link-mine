@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Globe, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Globe, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
 import type { Bookmark, Folder, DomainGroupedBookmark, DomainGroupingPreference, TreeNodeData } from '@linkmine/shared'
 import TreeView from '@/components/dashboard/TreeView'
 
@@ -500,7 +500,7 @@ function BookmarkCard({
           }`}
         >
           {/* Header with expand/collapse control */}
-          <div className="p-4 pb-2">
+          <div className="p-4 pb-2 px-1">
             {/* Top row: Domain info */}
             <div className="flex items-center gap-2 mb-2">
               <button
@@ -596,7 +596,7 @@ function BookmarkCard({
   // Regular single bookmark card
   return (
     <li
-      className={`card group flex flex-col p-4 transition hover:shadow-md ${
+      className={`card group flex flex-col justify-between p-4 transition hover:shadow-md ${
         due ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
       }`}
     >
@@ -640,9 +640,10 @@ function BookmarkCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackAccess(bookmark.id)}
-            className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
+            className="flex justify-between truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
           >
             {bookmark.title}
+            <ExternalLink className="w-4 h-4" />
           </a>
           <p className="mt-0.5 truncate text-xs text-gray-400">{domain}</p>
         </div>
