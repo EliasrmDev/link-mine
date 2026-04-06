@@ -503,12 +503,9 @@ function renderRecent(bookmarks) {
 
     const iconHtml = bm.icon
       ? bm.icon.startsWith('http')
-        ? `<img src="${escapeAttr(bm.icon)}" alt="" width="14" height="14" class="favicon"
-             ${getFaviconOnerrorAttr(bm.url, 16)} />`
+        ? `<img src="${escapeAttr(bm.icon)}" alt="" width="14" height="14" class="favicon" />`
         : `<span class="recent-icon" aria-hidden="true">${escapeHtml(bm.icon)}</span>`
-      : `<img src="${getFaviconUrl(bm.url, 16)}"
-               alt="" width="14" height="14" class="favicon"
-               ${getFaviconOnerrorAttr(bm.url, 16)} />`
+      : `<img src="${getFaviconUrl(bm.url, 16)}" alt="" width="14" height="14" class="favicon" />`
 
     li.innerHTML = `
       ${iconHtml}
@@ -533,6 +530,9 @@ function renderRecent(bookmarks) {
         </button>
       </div>
     `
+
+    // Apply favicon error handler programmatically (no inline onerror= allowed by CSP)
+    applyFaviconErrorHandler(li.querySelector('.favicon'), bm.url, 16)
 
     // Track lastAccessed on link click (fire-and-forget)
     li.querySelector('a').addEventListener('click', () => {
@@ -608,8 +608,7 @@ async function showEditForm(li, bm) {
 
   form.innerHTML = `
     <div class="edit-page-info">
-      <img class="edit-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16"
-           ${getFaviconOnerrorAttr(bm.url, 32)} />
+      <img class="edit-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16" />
       <div class="edit-page-text">
         <p class="edit-page-url" title="${bm.url}">${domain}</p>
       </div>
@@ -624,8 +623,7 @@ async function showEditForm(li, bm) {
       <label class="edit-label">Icon</label>
       <div class="edit-icon-picker">
         <div class="edit-icon-preview" aria-live="polite">
-          <img class="edit-icon-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16"
-               ${getFaviconOnerrorAttr(bm.url, 32)} />
+          <img class="edit-icon-favicon" src="${getFaviconUrl(bm.url, 32)}" alt="" width="16" height="16" />
           <span class="edit-icon-value" hidden></span>
         </div>
         <button type="button" class="edit-icon-btn" aria-label="Edit icon" title="Edit icon">
@@ -677,6 +675,10 @@ async function showEditForm(li, bm) {
   const iconPreview = form.querySelector('.edit-icon-preview')
   const iconValue = form.querySelector('.edit-icon-value')
   const iconFavicon = form.querySelector('.edit-icon-favicon')
+
+  // Apply favicon error handlers programmatically (no inline onerror= allowed by CSP)
+  applyFaviconErrorHandler(form.querySelector('.edit-favicon'), bm.url, 32)
+  applyFaviconErrorHandler(iconFavicon, bm.url, 32)
 
   // Set initial values
   titleInput.value = bm.title ?? ''
@@ -1055,14 +1057,21 @@ function isLocalUrl(url) {
   }
 }
 
-// Returns the onerror attribute string for a favicon <img>.
-// Local URLs skip Google (it can't reach them) and just hide the image.
-function getFaviconOnerrorAttr(url, size) {
+// Applies a favicon error handler programmatically to avoid inline event handlers (CSP MV3).
+function applyFaviconErrorHandler(img, url, size) {
+  if (!img) return
   if (isLocalUrl(url)) {
-    return `onerror="this.style.display='none'"`
+    img.onerror = () => { img.style.display = 'none' }
+  } else {
+    const fallback = getGoogleFaviconUrl(url, size)
+    img.onerror = () => {
+      if (!img.src.includes('google.com/s2/favicons')) {
+        img.src = fallback
+      } else {
+        img.style.display = 'none'
+      }
+    }
   }
-  const fallback = getGoogleFaviconUrl(url, size)
-  return `onerror="if(!this.src.includes('google.com/s2/favicons')){this.src='${fallback}'}else{this.style.display='none'}"`
 }
 
 function escapeHtml(str) {
