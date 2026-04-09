@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { prisma, setRLSContext } from '@/lib/prisma'
 import { signExtensionAccessToken } from '@/lib/jwt'
 
 // Refresh tokens live 90 days — shorter window limits exposure vs the old 365
@@ -10,11 +10,16 @@ const REFRESH_TOKEN_LIFETIME_DAYS = 90
 // Called by the /extension-auth page after the user is logged in.
 // Returns both a long-lived refresh token and an immediate short-lived access token,
 // so the extension is ready to make API calls without an extra round-trip.
+//
+// SECURITY: This endpoint handles sensitive extension tokens and requires RLS context.
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // SECURITY: Set RLS context for the authenticated user
+  await setRLSContext(session.user.id)
 
   // Validate that the request comes from our own app using exact origin matching
   if (process.env.NODE_ENV === 'production') {
@@ -46,6 +51,7 @@ export async function POST(request: NextRequest) {
   refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + REFRESH_TOKEN_LIFETIME_DAYS)
 
   // Upsert: one refresh token per user — reuse valid, replace expired
+  // SECURITY: RLS policies ensure user can only access their own tokens
   const existing = await prisma.extensionToken.findFirst({
     where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },

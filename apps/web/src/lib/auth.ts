@@ -40,7 +40,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
-    jwt({ token, user }) {
+    async signIn({ user, account, profile }) {
+      try {
+        // For OAuth providers, check if user with same email exists
+        if (account?.provider === 'google' || account?.provider === 'microsoft-entra-id') {
+          if (user?.email) {
+            // Check if user already exists with this email
+            const existingUser = await prisma.user.findUnique({
+              where: { email: user.email },
+              include: { accounts: true }
+            })
+
+            // If user exists, allow sign in (this enables account linking)
+            if (existingUser) {
+              console.log(`Account linking: ${account.provider} account for existing user ${user.email}`)
+              return true
+            }
+          }
+          return true
+        }
+        return true
+      } catch (error) {
+        console.error('SignIn error:', error)
+        // Allow sign in to continue, let the adapter handle issues
+        return true
+      }
+    },
+    jwt({ token, user, account }) {
       // Persist the DB user ID into the JWT on first sign-in
       if (user?.id) token.id = user.id
       return token

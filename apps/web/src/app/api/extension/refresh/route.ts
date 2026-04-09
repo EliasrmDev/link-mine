@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
+import { prisma, setRLSContext, withRLSContext } from '@/lib/prisma'
 import { signExtensionAccessToken } from '@/lib/jwt'
 
 const BodySchema = z.object({
@@ -16,6 +16,9 @@ const BodySchema = z.object({
  *
  * This endpoint is the ONLY place the refresh token is presented to the server.
  * All other API routes only see short-lived access tokens.
+ *
+ * SECURITY: This endpoint requires special RLS handling since it validates
+ * the token before authentication is established.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null)
@@ -28,7 +31,10 @@ export async function POST(request: NextRequest) {
 
   const { refreshToken } = parsed.data
 
-  // Validate refresh token (single DB lookup)
+  // SECURITY: Clear any existing RLS context before token validation
+  await setRLSContext(null)
+
+  // Validate refresh token (single DB lookup without RLS - tokens are pre-filtered by unique constraint)
   const record = await prisma.extensionToken.findUnique({
     where: { token: refreshToken },
     select: { id: true, userId: true, expiresAt: true },
@@ -41,9 +47,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Update lastUsed for audit trail (non-blocking: don't await)
-  prisma.extensionToken.update({ where: { id: record.id }, data: { lastUsed: new Date() } })
-    .catch(() => { /* non-critical */ })
+  // SECURITY: Now that we have the userId, set RLS context and update lastUsed within that context
+  await withRLSContext(record.userId, async () => {
+    // Update lastUsed for audit trail (non-blocking: don't await within context)
+    prisma.extensionToken.update({
+      where: { id: record.id },
+      data: { lastUsed: new Date() }
+    }).catch(() => { /* non-critical */ })
+  })
 
   // Issue a fresh JWT access token
   const { token: accessToken, expiresAt } = await signExtensionAccessToken(record.userId)

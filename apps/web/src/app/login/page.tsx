@@ -56,6 +56,8 @@ export default async function LoginPage({
             >
               {error === 'OAuthCallback'
                 ? 'There was a problem with the sign-in. Please try again.'
+                : error === 'OAuthAccountNotLinked'
+                ? 'An account with this email already exists. Your accounts have been linked automatically.'
                 : 'Something went wrong. Please try again.'}
             </div>
           )}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from './auth'
-import { prisma } from './prisma'
+import { prisma, setRLSContext } from './prisma'
 import { isJwt, verifyExtensionAccessToken } from './jwt'
 
 /**
@@ -40,11 +40,21 @@ export async function resolveUserId(request: NextRequest): Promise<string | null
 }
 
 /**
- * Convenience: returns userId or a 401 JSON response.
+ * Enhanced authentication with automatic Row Level Security (RLS) context setup.
+ *
+ * This function:
+ * 1. Resolves the authenticated user ID
+ * 2. Sets the RLS context for database operations
+ * 3. Returns userId or a 401 JSON response
+ *
+ * SECURITY: All subsequent database operations in the request will be
+ * automatically filtered by RLS policies to only access the user's own data.
+ *
  * Usage:
  *   const result = await requireAuth(request)
  *   if ('error' in result) return result.error
  *   const { userId } = result
+ *   // All prisma operations are now secured by RLS
  */
 export async function requireAuth(
   request: NextRequest,
@@ -55,6 +65,21 @@ export async function requireAuth(
       error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
     }
   }
+
+  // SECURITY: Set RLS context for this user
+  // This ensures all subsequent database operations are filtered by user ownership
+  try {
+    await setRLSContext(userId)
+  } catch (error) {
+    console.error('Failed to set RLS context:', error)
+    return {
+      error: NextResponse.json(
+        { error: 'Security context setup failed' },
+        { status: 500 }
+      ),
+    }
+  }
+
   return { userId }
 }
 
