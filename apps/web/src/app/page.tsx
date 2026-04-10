@@ -34,7 +34,7 @@ export default async function LandingPage() {
       <main>
         {/* Hero */}
         <section className="mx-auto max-w-6xl px-4 py-24 text-center">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-sm font-medium text-brand-700 dark:bg-brand-900/30 dark:text-white">
             <span className="h-2 w-2 rounded-full bg-brand-500"></span>
             Free while in beta
           </div>
@@ -49,7 +49,7 @@ export default async function LandingPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <a
-              href="https://chrome.google.com/webstore"
+              href="https://chromewebstore.google.com/detail/hdpomlckkljpipiobipbjejemhgcecgb?utm_source=item-share-cb"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-primary py-3 px-6 text-base"
@@ -106,15 +106,96 @@ export default async function LandingPage() {
         {/* CTA */}
         <section className="bg-brand-600 py-16 text-center text-white">
           <h2 className="mb-4 text-3xl font-bold">Ready to get organized?</h2>
-          <p className="mb-8 text-brand-100">Start saving bookmarks in seconds. Free forever.</p>
+          <p className="mb-8 text-white">Start saving bookmarks in seconds. Free forever.</p>
           <Link href="/login" className="btn bg-white text-brand-700 hover:bg-brand-50 px-8 py-3 text-base font-semibold">
             Create Free Account
           </Link>
         </section>
       </main>
 
-      <footer className="border-t border-gray-200 py-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
-        <p>&copy; {new Date().getFullYear()} LinkMine. Built with Next.js &amp; Prisma.</p>
+      <footer className="border-t border-gray-200 py-12 dark:border-gray-800">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Company */}
+            <div>
+              <div className="mb-4">
+                <Link href="/" className="text-xl font-bold text-brand-400">
+                  LinkMine
+                </Link>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Save the web. Find it later. The simplest way to organize your bookmarks.
+              </p>
+            </div>
+
+            {/* Product */}
+            <div>
+              <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Product</h3>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <Link href="/features" className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+                    Features
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/pricing" className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+                    Pricing
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="https://chromewebstore.google.com/detail/hdpomlckkljpipiobipbjejemhgcecgb?utm_source=item-share-cb"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+                  >
+                    Chrome Extension
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Company */}
+            <div>
+              <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Company</h3>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <Link href="/about" className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+                    About
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+                    Contact
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Legal</h3>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <Link href="/privacy" className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/terms" className="text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+                    Terms of Service
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-8 border-t border-gray-200 pt-8 text-center dark:border-gray-800">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              &copy; {new Date().getFullYear()} LinkMine. Built with Next.js &amp; Prisma.
+            </p>
+          </div>
+        </div>
       </footer>
     </div>
   )
