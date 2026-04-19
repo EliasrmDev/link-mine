@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useId } from 'react'
 import type { Bookmark, Folder } from '@linkmine/shared'
 import { PRESET_ICONS } from '@linkmine/shared'
 import { PRESET_TAGS } from '@linkmine/shared'
@@ -86,6 +86,7 @@ export function BookmarkForm({
   onClose,
 }: Props) {
   const isEditing = !!bookmark
+  const formId = useId()
   const [url, setUrl] = useState(bookmark?.url ?? initialDraft?.url ?? '')
   const [title, setTitle] = useState(bookmark?.title ?? initialDraft?.title ?? '')
   const [tagInput, setTagInput] = useState(bookmark?.tags.join(', ') ?? initialDraft?.tags.join(', ') ?? '')
@@ -471,13 +472,13 @@ export function BookmarkForm({
 
         <div className="space-y-4 sm:space-y-4">
           <div>
-            <label htmlFor="bm-url" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor={`${formId}-url`} className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               URL <span aria-hidden="true" className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
                 ref={firstInputRef}
-                id="bm-url"
+                id={`${formId}-url`}
                 type="url"
                 required
                 value={url}
@@ -495,11 +496,11 @@ export function BookmarkForm({
           </div>
 
           <div>
-            <label htmlFor="bm-title" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor={`${formId}-title`} className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Title <span aria-hidden="true" className="text-red-500">*</span>
             </label>
             <input
-              id="bm-title"
+              id={`${formId}-title`}
               type="text"
               required
               value={title}
@@ -660,7 +661,7 @@ export function BookmarkForm({
           </div>
 
           <div>
-            <label htmlFor="bm-tags" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor={`${formId}-tags`} className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Tags
             </label>
             <div className="mb-3 flex flex-wrap gap-2 sm:gap-1">
@@ -684,7 +685,7 @@ export function BookmarkForm({
               })}
             </div>
             <input
-              id="bm-tags"
+              id={`${formId}-tags`}
               type="text"
               value={tagInput}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTagInput(e.target.value)}
@@ -695,11 +696,11 @@ export function BookmarkForm({
 
           {/* Reminder date */}
           <div>
-            <label htmlFor="bm-reminder" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor={`${formId}-reminder`} className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Reminder date
             </label>
             <input
-              id="bm-reminder"
+              id={`${formId}-reminder`}
               type="date"
               value={reminderDate}
               onChange={(e) => setReminderDate(e.target.value)}
@@ -724,7 +725,7 @@ export function BookmarkForm({
           </div>
 
           <div>
-            <label htmlFor="bm-folder" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor={`${formId}-folder`} className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Folder
             </label>
             <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
@@ -732,7 +733,7 @@ export function BookmarkForm({
             </p>
             <div className="relative">
               <input
-                id="bm-folder"
+                id={`${formId}-folder`}
                 type="text"
                 value={folderInput}
                 onChange={(e) => setFolderInput(e.target.value)}

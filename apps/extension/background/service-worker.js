@@ -239,23 +239,27 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // ─── Offline sync ─────────────────────────────────────────────────────────────
 
 async function syncPending() {
-  const refreshToken = await getRefreshToken()
-  if (!refreshToken) return
+  try {
+    const refreshToken = await getRefreshToken()
+    if (!refreshToken) return
 
-  const { pendingBookmarks = [] } = await chrome.storage.local.get('pendingBookmarks')
-  if (pendingBookmarks.length === 0) return
+    const { pendingBookmarks = [] } = await chrome.storage.local.get('pendingBookmarks')
+    if (pendingBookmarks.length === 0) return
 
-  const remaining = []
-  for (const bookmark of pendingBookmarks) {
-    const result = await apiSaveBookmark(bookmark, refreshToken)
+    const remaining = []
+    for (const bookmark of pendingBookmarks) {
+      const result = await apiSaveBookmark(bookmark, refreshToken)
 
-    // 409 means the bookmark is already in the server; treat it as synced
-    // so we don't retry forever on every alarm tick.
-    if (!result.ok && !result.authError && result.status !== 409) remaining.push(bookmark)
-    if (result.authError) break // no point retrying if not authenticated
+      // 409 means the bookmark is already in the server; treat it as synced
+      // so we don't retry forever on every alarm tick.
+      if (!result.ok && !result.authError && result.status !== 409) remaining.push(bookmark)
+      if (result.authError) break // no point retrying if not authenticated
+    }
+
+    await chrome.storage.local.set({ pendingBookmarks: remaining })
+  } catch (err) {
+    console.error('[syncPending] alarm error:', err)
   }
-
-  await chrome.storage.local.set({ pendingBookmarks: remaining })
 }
 
 // ─── Proactive token refresh ──────────────────────────────────────────────────
@@ -267,32 +271,40 @@ async function syncPending() {
  * ensures there is always a fresh token ready in cache.
  */
 async function proactiveTokenRefresh() {
-  const refreshToken = await getRefreshToken()
-  if (!refreshToken) return
+  try {
+    const refreshToken = await getRefreshToken()
+    if (!refreshToken) return
 
-  const result = await apiRefreshAccessToken(refreshToken)
-  if (result.ok) {
-    await chrome.storage.local.set({
-      accessToken:       result.accessToken,
-      accessTokenExpiry: new Date(result.expiresAt).getTime(),
-    })
-  } else if (result.status === 401) {
-    // Refresh token expired — clear auth and let next popup open trigger re-login
-    await clearAllTokens()
-    chrome.action.setBadgeBackgroundColor({ color: '#ef4444' })
-    chrome.action.setBadgeText({ text: '!' })
+    const result = await apiRefreshAccessToken(refreshToken)
+    if (result.ok) {
+      await chrome.storage.local.set({
+        accessToken:       result.accessToken,
+        accessTokenExpiry: new Date(result.expiresAt).getTime(),
+      })
+    } else if (result.status === 401) {
+      // Refresh token expired — clear auth and let next popup open trigger re-login
+      await clearAllTokens()
+      chrome.action.setBadgeBackgroundColor({ color: '#ef4444' })
+      chrome.action.setBadgeText({ text: '!' })
+    }
+  } catch (err) {
+    console.error('[proactiveTokenRefresh] alarm error:', err)
   }
 }
 
 // ─── Reminder check ───────────────────────────────────────────────────────────
 
 async function checkReminders() {
-  const refreshToken = await getRefreshToken()
-  if (!refreshToken) return
+  try {
+    const refreshToken = await getRefreshToken()
+    if (!refreshToken) return
 
-  const { count } = await apiFetchDueReminders(refreshToken)
-  await setReminderCount(count)
-  updateReminderBadge(count)
+    const { count } = await apiFetchDueReminders(refreshToken)
+    await setReminderCount(count)
+    updateReminderBadge(count)
+  } catch (err) {
+    console.error('[checkReminders] alarm error:', err)
+  }
 }
 
 function updateReminderBadge(count) {

@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server'
  */
 
 const PUBLIC_PAGES = new Set(['/', '/login'])
-const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/extension/refresh', '/api/extension/connect']
+const PUBLIC_API_PREFIXES = ['/api/auth/', '/api/extension/refresh', '/api/extension/connect', '/api/oauth/authorize', '/api/oauth/token', '/api/oauth/refresh', '/api/oauth/revoke']
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
@@ -65,8 +65,8 @@ export default auth((request) => {
     return response
   }
 
-  // Protect dashboard pages
-  if (pathname.startsWith('/dashboard') || pathname === '/extension-auth') {
+  // Protect dashboard pages and auth flows
+  if (pathname.startsWith('/dashboard') || pathname === '/extension-auth' || pathname.startsWith('/oauth/consent')) {
     if (!session?.user?.id) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('callbackUrl', pathname)

@@ -1,41 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/api'
+import { z } from 'zod'
+import { requireAuth, badRequest } from '@/lib/api'
 import { broadcastToUser, type SyncEvent } from '@/lib/sse'
+
+const BookmarkPayloadSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  title: z.string(),
+}).passthrough()
+
+const BroadcastSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('BOOKMARK_CREATED'),
+    bookmark: BookmarkPayloadSchema,
+  }),
+  z.object({
+    type: z.literal('BOOKMARK_UPDATED'),
+    bookmark: BookmarkPayloadSchema,
+  }),
+  z.object({
+    type: z.literal('BOOKMARK_DELETED'),
+    id: z.string().min(1),
+  }),
+])
 
 // POST /api/sync/broadcast - Notify web app of changes from extension
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request)
   if ('error' in auth) return auth.error
 
-  try {
-    const body = await request.json()
+  const body = await request.json().catch(() => null)
+  if (!body) return badRequest('Invalid JSON body')
 
-    // Validate the event type and payload
-    const allowedTypes = ['BOOKMARK_CREATED', 'BOOKMARK_UPDATED', 'BOOKMARK_DELETED']
-    if (!allowedTypes.includes(body.type)) {
-      return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
-    }
+  const parsed = BroadcastSchema.safeParse(body)
+  if (!parsed.success) return badRequest(parsed.error.issues[0].message)
 
-    let syncEvent: SyncEvent
+  let syncEvent: SyncEvent
 
-    switch (body.type) {
-      case 'BOOKMARK_CREATED':
-      case 'BOOKMARK_UPDATED':
-        syncEvent = { type: 'bookmark:saved', bookmark: body.bookmark }
-        break
-      case 'BOOKMARK_DELETED':
-        syncEvent = { type: 'bookmark:deleted', id: body.id }
-        break
-      default:
-        return NextResponse.json({ error: 'Unknown event type' }, { status: 400 })
-    }
-
-    // Broadcast to the user's SSE stream
-    broadcastToUser(auth.userId, syncEvent)
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Broadcast error:', error)
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  switch (parsed.data.type) {
+    case 'BOOKMARK_CREATED':
+    case 'BOOKMARK_UPDATED':
+      syncEvent = { type: 'bookmark:saved', bookmark: parsed.data.bookmark }
+      break
+    case 'BOOKMARK_DELETED':
+      syncEvent = { type: 'bookmark:deleted', id: parsed.data.id }
+      break
   }
+
+  broadcastToUser(auth.userId, syncEvent)
+
+  return NextResponse.json({ success: true })
 }

@@ -1,6 +1,6 @@
 import { Metadata } from 'next'
 import { auth } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 import { DashboardClient } from '@/components/dashboard/DashboardClient'
 
 export const metadata: Metadata = { title: 'Dashboard' }
@@ -10,46 +10,42 @@ export default async function DashboardPage() {
   const userId = session!.user!.id as string
 
   // Fetch initial data server-side — no loading spinner on first render
-  const [foldersFlat, bookmarks, total, domainPreferences] = await Promise.all([
-    prisma.folder.findMany({
-      where: { userId },
-      include: { _count: { select: { bookmarks: true } } },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.bookmark.findMany({
-      where: { userId },
-      include: { folder: { select: { id: true, name: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    }),
-    prisma.bookmark.count({ where: { userId } }),
-    // Fetch domain grouping preferences
-    prisma.userPreference.findMany({
-      where: {
-        userId,
-        key: { startsWith: 'domain_grouping:' },
-      },
-    }),
-  ])
+  const { foldersFlat, bookmarks, domainPreferences, presets, tagCounts } = await withRLS(userId, async (tx) => {
+    const [foldersFlat, bookmarks, domainPreferences] = await Promise.all([
+      tx.folder.findMany({
+        where: { userId },
+        include: { _count: { select: { bookmarks: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      tx.bookmark.findMany({
+        where: { userId },
+        include: { folder: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      tx.userPreference.findMany({
+        where: {
+          userId,
+          key: { startsWith: 'domain_grouping:' },
+        },
+      }),
+    ])
 
-  const [presets, rawTagData] = await Promise.all([
-    // Get presets for tags and icons
-    prisma.userPreset.findMany({
-      where: { userId },
-      select: { type: true, value: true },
-    }),
-    // Get tag usage counts
-    prisma.bookmark.findMany({
-      where: { userId },
-      select: { tags: true },
-    }),
-  ])
+    const [presets, tagCounts] = await Promise.all([
+      tx.userPreset.findMany({
+        where: { userId },
+        select: { type: true, value: true },
+      }),
+      tx.$queryRaw<Array<{ name: string; count: bigint }>>`
+        SELECT unnest("tags") AS name, count(*) AS count
+        FROM "public"."Bookmark"
+        WHERE "userId" = ${userId}
+        GROUP BY name
+        ORDER BY count DESC, name ASC
+      `.then(rows => rows.map(r => ({ name: r.name, count: Number(r.count) }))),
+    ])
 
-  const tagCounts = (() => {
-    const counts = new Map<string, number>()
-    rawTagData.forEach((b: { tags: string[] }) => b.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
-    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }))
-  })()
+    return { foldersFlat, bookmarks, domainPreferences, presets, tagCounts }
+  })
 
   // Build tree
   const folders = foldersFlat
@@ -112,7 +108,6 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       initialBookmarks={serializedBookmarks}
-      initialTotal={total}
       initialFolders={folders}
       initialTagsWithCounts={initialTags}
       initialIconsWithCounts={initialIcons}

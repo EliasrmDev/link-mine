@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma, setRLSContext, withRLSContext } from '@/lib/prisma'
+import { prisma, withRLS } from '@/lib/prisma'
 import { signExtensionAccessToken } from '@/lib/jwt'
 
 const BodySchema = z.object({
@@ -31,10 +31,7 @@ export async function POST(request: NextRequest) {
 
   const { refreshToken } = parsed.data
 
-  // SECURITY: Clear any existing RLS context before token validation
-  await setRLSContext(null)
-
-  // Validate refresh token (single DB lookup without RLS - tokens are pre-filtered by unique constraint)
+  // Validate refresh token (direct lookup without RLS — token-based, not user-scoped)
   const record = await prisma.extensionToken.findUnique({
     where: { token: refreshToken },
     select: { id: true, userId: true, expiresAt: true },
@@ -47,12 +44,11 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // SECURITY: Now that we have the userId, set RLS context and update lastUsed within that context
-  await withRLSContext(record.userId, async () => {
-    // Update lastUsed for audit trail (non-blocking: don't await within context)
-    prisma.extensionToken.update({
+  // Update lastUsed within RLS context for audit trail
+  await withRLS(record.userId, async (tx) => {
+    await tx.extensionToken.update({
       where: { id: record.id },
-      data: { lastUsed: new Date() }
+      data: { lastUsed: new Date() },
     }).catch(() => { /* non-critical */ })
   })
 

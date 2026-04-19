@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
 
@@ -14,23 +14,26 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth(request)
   if ('error' in auth) return auth.error
 
-  const folders = await prisma.folder.findMany({
-    where: { userId: auth.userId },
-    include: { _count: { select: { bookmarks: true } } },
-    orderBy: { createdAt: 'asc' },
+  return withRLS(auth.userId, async (tx) => {
+    const folders = await tx.folder.findMany({
+      where: { userId: auth.userId },
+      include: { _count: { select: { bookmarks: true } } },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    type FolderRow = (typeof folders)[number]
+
+    const roots = folders
+      .filter((f: FolderRow) => !f.parentId)
+      .map((f: FolderRow) => ({
+        ...f,
+        children: folders.filter((c: FolderRow) => c.parentId === f.id),
+      }))
+
+    return NextResponse.json(roots, {
+      headers: { 'Cache-Control': 'private, no-cache' },
+    })
   })
-
-  type FolderRow = (typeof folders)[number]
-
-  // Build tree (max 2 levels)
-  const roots = folders
-    .filter((f: FolderRow) => !f.parentId)
-    .map((f: FolderRow) => ({
-      ...f,
-      children: folders.filter((c: FolderRow) => c.parentId === f.id),
-    }))
-
-  return NextResponse.json(roots)
 }
 
 // POST /api/folders
@@ -46,26 +49,28 @@ export async function POST(request: NextRequest) {
 
   const { name, parentId } = parsed.data
 
-  // Check for duplicate name in the same level
-  const duplicate = await prisma.folder.findFirst({
-    where: { userId: auth.userId, parentId: parentId ?? null, name },
-  })
-  if (duplicate) return badRequest('A folder with this name already exists')
-
-  // Enforce max 2 levels
-  if (parentId) {
-    const parent = await prisma.folder.findFirst({
-      where: { id: parentId, userId: auth.userId },
+  return withRLS(auth.userId, async (tx) => {
+    // Check for duplicate name in the same level
+    const duplicate = await tx.folder.findFirst({
+      where: { userId: auth.userId, parentId: parentId ?? null, name },
     })
-    if (!parent) return badRequest('Parent folder not found')
-    if (parent.parentId) return badRequest('Maximum folder depth (2 levels) reached')
-  }
+    if (duplicate) return badRequest('A folder with this name already exists')
 
-  const folder = await prisma.folder.create({
-    data: { name, parentId: parentId ?? null, userId: auth.userId },
-    include: { _count: { select: { bookmarks: true } } },
+    // Enforce max 2 levels
+    if (parentId) {
+      const parent = await tx.folder.findFirst({
+        where: { id: parentId, userId: auth.userId },
+      })
+      if (!parent) return badRequest('Parent folder not found')
+      if (parent.parentId) return badRequest('Maximum folder depth (2 levels) reached')
+    }
+
+    const folder = await tx.folder.create({
+      data: { name, parentId: parentId ?? null, userId: auth.userId },
+      include: { _count: { select: { bookmarks: true } } },
+    })
+
+    broadcastToUser(auth.userId, { type: 'folders:changed' })
+    return NextResponse.json(folder, { status: 201 })
   })
-
-  broadcastToUser(auth.userId, { type: 'folders:changed' })
-  return NextResponse.json(folder, { status: 201 })
 }

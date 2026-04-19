@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import type { Folder } from '@linkmine/shared'
 import { Modal } from '../ui/Modal'
 
@@ -14,6 +14,7 @@ interface Props {
 
 export function FolderForm({ folder, parentId, folders, onSave, onClose }: Props) {
   const isEditing = !!folder
+  const formId = useId()
   const [name, setName] = useState(folder?.name ?? '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -85,12 +86,12 @@ export function FolderForm({ folder, parentId, folders, onSave, onClose }: Props
         )}
 
         <div>
-          <label htmlFor="folder-name" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor={`${formId}-name`} className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
             Folder name <span aria-hidden="true" className="text-red-500">*</span>
           </label>
           <input
             ref={inputRef}
-            id="folder-name"
+            id={`${formId}-name`}
             type="text"
             required
             value={name}

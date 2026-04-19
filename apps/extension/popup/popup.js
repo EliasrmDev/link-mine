@@ -33,7 +33,8 @@ const PRESET_TAGS = ['work', 'study', 'tools', 'design', 'frontend', 'backend', 
 
 const EXT_ID = chrome.runtime.id
 const DASHBOARD_URL = `${BASE_URL}/dashboard`
-const LOGIN_URL = `${BASE_URL}/extension-auth?extensionId=${EXT_ID}`
+// Legacy direct-connect URL (kept as fallback)
+const LOGIN_URL_LEGACY = `${BASE_URL}/extension-auth?extensionId=${EXT_ID}`
 
 // ─── DOM references ───────────────────────────────────────────────────────────
 
@@ -981,9 +982,50 @@ async function handleAuthError() {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
-btnLogin.addEventListener('click', () => {
-  chrome.tabs.create({ url: LOGIN_URL })
-  window.close()
+/**
+ * OAuth 2.0 Authorization Code Flow with PKCE.
+ * Generates code_verifier + code_challenge, opens the authorize URL,
+ * and the callback page handles the token exchange.
+ */
+btnLogin.addEventListener('click', async () => {
+  try {
+    // Generate PKCE code_verifier (43-128 chars, URL-safe)
+    const verifierBytes = new Uint8Array(32)
+    crypto.getRandomValues(verifierBytes)
+    const codeVerifier = btoa(String.fromCharCode(...verifierBytes))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+    // Derive code_challenge = base64url(SHA-256(code_verifier))
+    const encoder = new TextEncoder()
+    const digest = await crypto.subtle.digest('SHA-256', encoder.encode(codeVerifier))
+    const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+    const redirectUri = `${BASE_URL}/extension-auth/callback`
+
+    // Encode state with extensionId + codeVerifier for the callback
+    const state = btoa(JSON.stringify({
+      extensionId: EXT_ID,
+      codeVerifier,
+      redirectUri,
+    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+    const authorizeUrl = new URL(`${BASE_URL}/api/oauth/authorize`)
+    authorizeUrl.searchParams.set('client_id', 'chrome-extension')
+    authorizeUrl.searchParams.set('redirect_uri', redirectUri)
+    authorizeUrl.searchParams.set('response_type', 'code')
+    authorizeUrl.searchParams.set('scope', 'bookmark:read bookmark:write folder:read folder:write')
+    authorizeUrl.searchParams.set('state', state)
+    authorizeUrl.searchParams.set('code_challenge', codeChallenge)
+    authorizeUrl.searchParams.set('code_challenge_method', 'S256')
+
+    chrome.tabs.create({ url: authorizeUrl.toString() })
+    window.close()
+  } catch {
+    // Fallback to legacy direct-connect flow
+    chrome.tabs.create({ url: LOGIN_URL_LEGACY })
+    window.close()
+  }
 })
 
 // ─── Theme toggle ─────────────────────────────────────────────────────────────

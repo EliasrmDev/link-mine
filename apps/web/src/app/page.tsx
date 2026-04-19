@@ -1,9 +1,14 @@
 import Link from 'next/link'
-import { auth } from '@/lib/auth'
+import type { Metadata } from 'next'
+import { LandingNav } from '@/components/LandingNav'
 
-export default async function LandingPage() {
-  const session = await auth()
+export const metadata: Metadata = {
+  title: 'LinkMine — Save, Organize & Sync Your Bookmarks',
+  description:
+    'Save any page in one click, organize bookmarks into folders, and sync across all your devices. Free Chrome extension + web dashboard.',
+}
 
+export default function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Nav */}
@@ -12,22 +17,7 @@ export default async function LandingPage() {
           <Link href="/">
             <span className="text-xl font-bold text-brand-400">LinkMine</span>
           </Link>
-          <nav className="flex items-center gap-3">
-            {session ? (
-              <Link href="/dashboard" className="btn-primary">
-                Open Dashboard
-              </Link>
-            ) : (
-              <>
-                <Link href="/login" className="btn-secondary">
-                  Sign in
-                </Link>
-                <Link href="/login" className="btn-primary">
-                  Get Started Free
-                </Link>
-              </>
-            )}
-          </nav>
+          <LandingNav />
         </div>
       </header>
 

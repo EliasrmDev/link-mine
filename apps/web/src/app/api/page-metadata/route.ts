@@ -116,6 +116,8 @@ export async function GET(request: NextRequest) {
   let title = ''
   let htmlContent: string | undefined = undefined
 
+  const MAX_BODY_SIZE = 128 * 1024 // 128 KB — enough for <title> and <link rel="icon">
+
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(8000),
@@ -127,8 +129,28 @@ export async function GET(request: NextRequest) {
     if (response.ok) {
       const contentType = response.headers.get('content-type')
       if (contentType?.includes('text/html')) {
-        htmlContent = await response.text()
-        title = extractTitleFromHtml(htmlContent)
+        // Read only the first MAX_BODY_SIZE bytes to avoid fetching huge pages
+        const reader = response.body?.getReader()
+        if (reader) {
+          const chunks: Uint8Array[] = []
+          let totalBytes = 0
+          const decoder = new TextDecoder()
+
+          while (totalBytes < MAX_BODY_SIZE) {
+            const { done, value } = await reader.read()
+            if (done || !value) break
+            chunks.push(value)
+            totalBytes += value.length
+          }
+          reader.cancel().catch(() => {})
+
+          htmlContent = decoder.decode(
+            chunks.length === 1
+              ? chunks[0]
+              : new Uint8Array(chunks.reduce((acc, c) => { acc.push(...c); return acc }, [] as number[]))
+          )
+          title = extractTitleFromHtml(htmlContent)
+        }
       }
     }
   } catch (fetchError) {
@@ -148,5 +170,7 @@ export async function GET(request: NextRequest) {
 
   const favicon = getFaviconUrl(url, htmlContent)
 
-  return NextResponse.json({ title, favicon, url })
+  return NextResponse.json({ title, favicon, url }, {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
+  })
 }

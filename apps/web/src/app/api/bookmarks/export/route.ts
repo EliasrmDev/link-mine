@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api'
 
 interface BookmarkData {
@@ -129,19 +129,20 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const format = searchParams.get('format') || 'json'
 
-  const bookmarks = await prisma.bookmark.findMany({
-    where: { userId: auth.userId },
-    include: { folder: { select: { id: true, name: true } } },
-    orderBy: { createdAt: 'desc' },
-  })
+  return withRLS(auth.userId, async (tx) => {
+    const bookmarks = await tx.bookmark.findMany({
+      where: { userId: auth.userId },
+      include: { folder: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
 
-  const exportBookmarks = bookmarks.map((b: { url: string; title: string; tags: string[]; folder: { id: string; name: string } | null; createdAt: Date }) => ({
-    url: b.url,
-    title: b.title,
-    tags: b.tags,
-    folder: b.folder?.name ?? 'Ungrouped',
-    createdAt: b.createdAt,
-  }))
+    const exportBookmarks = bookmarks.map((b: { url: string; title: string; tags: string[]; folder: { id: string; name: string } | null; createdAt: Date }) => ({
+      url: b.url,
+      title: b.title,
+      tags: b.tags,
+      folder: b.folder?.name ?? 'Ungrouped',
+      createdAt: b.createdAt,
+    }))
 
   const timestamp = new Date().toISOString().split('T')[0]
 
@@ -199,5 +200,6 @@ export async function GET(request: NextRequest) {
           'Content-Disposition': `attachment; filename="linkmine-bookmarks-${timestamp}.json"`,
         },
       })
-  }
+    }
+  })
 }

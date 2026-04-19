@@ -25,14 +25,21 @@ function getSecret(): Uint8Array {
 /**
  * Issue a signed JWT access token for an extension user.
  * Returns the token string and its exact expiry date.
+ * Optionally embeds scopes for OAuth-issued tokens.
  */
 export async function signExtensionAccessToken(
   userId: string,
+  scopes?: string[],
 ): Promise<{ token: string; expiresAt: Date }> {
   const now = Math.floor(Date.now() / 1000)
   const exp = now + ACCESS_TOKEN_LIFETIME_SECONDS
 
-  const token = await new SignJWT({ type: TOKEN_TYPE })
+  const payload: Record<string, unknown> = { type: TOKEN_TYPE }
+  if (scopes && scopes.length > 0) {
+    payload.scopes = scopes
+  }
+
+  const token = await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(userId)
     .setIssuedAt(now)
@@ -42,15 +49,24 @@ export async function signExtensionAccessToken(
   return { token, expiresAt: new Date(exp * 1000) }
 }
 
+export interface ExtensionTokenPayload {
+  userId: string
+  scopes: string[] | null
+}
+
 /**
  * Verify an extension access token.
- * Returns the userId if valid, null otherwise (expired, tampered, wrong type).
+ * Returns the userId and scopes if valid, null otherwise (expired, tampered, wrong type).
+ * Tokens without scopes (pre-OAuth) return scopes: null (full access).
  */
-export async function verifyExtensionAccessToken(token: string): Promise<string | null> {
+export async function verifyExtensionAccessToken(token: string): Promise<ExtensionTokenPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret(), { algorithms: ['HS256'] })
     if (payload.type !== TOKEN_TYPE) return null
-    return payload.sub ?? null
+    const userId = payload.sub ?? null
+    if (!userId) return null
+    const scopes = Array.isArray(payload.scopes) ? (payload.scopes as string[]) : null
+    return { userId, scopes }
   } catch {
     return null
   }

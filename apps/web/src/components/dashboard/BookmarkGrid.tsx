@@ -1,11 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink, Globe, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
 import type { Bookmark, Folder, DomainGroupedBookmark, DomainGroupingPreference, TreeNodeData } from '@linkmine/shared'
 import TreeView from '@/components/dashboard/TreeView'
 
 const STALE_DAYS = 30
+
+// Deterministic hue from domain string for unique group colors
+function domainHue(domain: string): number {
+  let hash = 0
+  for (let i = 0; i < domain.length; i++) {
+    hash = domain.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return ((hash % 360) + 360) % 360
+}
 
 function isLocalDomain(domain: string): boolean {
   return (
@@ -488,21 +497,27 @@ function BookmarkCard({
   const due = isReminderDue(bookmark)
   const upcoming = isReminderUpcoming(bookmark)
   const hasChildren = bookmark.isParent && bookmark.children && bookmark.children.length > 0
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null)
 
   // Parent bookmark with children (grouped)
   if (hasChildren) {
+    const hue = domainHue(domain)
+
     return (
       <li className="space-y-1">
         {/* Parent bookmark card */}
         <div
-          className={`card group flex flex-col transition hover:shadow-md border-l-4 border-l-blue-500 ${
+          className={`card group flex flex-col transition hover:shadow-md dark:!bg-gray-800 ${
             due ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
           }`}
+          style={{
+            border: `2px solid hsl(${hue} 60% 50%)`,
+          }}
         >
           {/* Header with expand/collapse control */}
-          <div className="p-4 pb-2 px-1">
+          <div className="p-4 pb-2 px-2">
             {/* Top row: Domain info */}
-            <div className="flex items-center gap-2 mb-2">
+            <div className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-2 mb-2">
               <button
                 onClick={onToggleExpansion}
                 className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -512,12 +527,31 @@ function BookmarkCard({
                 ) : (
                   <ChevronRight className="w-4 h-4" />
                 )}
-                <Globe className="w-4 h-4" />
               </button>
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {/* Parent favicon / icon */}
+              {bookmark.icon && !bookmark.icon.startsWith('http') ? (
+                <span className="text-base leading-none" aria-hidden="true">{bookmark.icon}</span>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={bookmark.icon?.startsWith('http') ? bookmark.icon : favicon}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="h-5 w-5 shrink-0 rounded"
+                  onError={(e) => handleFaviconError(e, bookmark.url, domain)}
+                />
+              )}
+              <span className="truncate text-sm font-semibold text-gray-700 dark:text-gray-300">
                 {domain}
               </span>
-              <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full">
+              <span
+                className="text-xs px-2 py-0.5 rounded-full font-medium"
+                style={{
+                  backgroundColor: `hsl(${hue} 50% 92%)`,
+                  color: `hsl(${hue} 20% 10%)`,
+                }}
+              >
                 {(bookmark.children?.length || 0) + 1} links
               </span>
             </div>
@@ -542,7 +576,8 @@ function BookmarkCard({
                   bookmark={bookmark}
                   onEdit={onEdit}
                   onDelete={onDelete}
-                  isParent
+                  isLastClicked={lastClickedId === bookmark.id}
+                  onLinkClick={() => setLastClickedId(bookmark.id)}
                 />
 
                 {/* Children bookmarks */}
@@ -552,6 +587,8 @@ function BookmarkCard({
                     bookmark={child}
                     onEdit={onEdit}
                     onDelete={onDelete}
+                    isLastClicked={lastClickedId === child.id}
+                    onLinkClick={() => setLastClickedId(child.id)}
                   />
                 ))}
               </div>
@@ -733,12 +770,14 @@ function NestedBookmarkItem({
   bookmark,
   onEdit,
   onDelete,
-  isParent = false,
+  isLastClicked = false,
+  onLinkClick,
 }: {
   bookmark: Bookmark
   onEdit: (b: Bookmark) => void
   onDelete: (id: string) => void
-  isParent?: boolean
+  isLastClicked?: boolean
+  onLinkClick?: () => void
 }) {
   const domain = (() => {
     try { return new URL(bookmark.url).hostname } catch { return '' }
@@ -749,7 +788,7 @@ function NestedBookmarkItem({
 
   return (
     <div className={`group p-3 rounded-md border transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
-      isParent ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'border-gray-200 dark:border-gray-600'
+      isLastClicked ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'border-gray-200 dark:border-gray-600'
     }`}>
       <div className="flex items-start gap-3">
         <div className="flex items-center gap-2">
@@ -761,7 +800,7 @@ function NestedBookmarkItem({
             href={bookmark.url}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackAccess(bookmark.id)}
+            onClick={() => { trackAccess(bookmark.id); onLinkClick?.() }}
             className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
           >
             {bookmark.title}

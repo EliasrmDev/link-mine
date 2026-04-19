@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/api'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 
 // DELETE /api/icons/delete
 // Delete all instances of an icon from bookmarks and presets
@@ -15,29 +15,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Icon is required' }, { status: 400 })
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Remove icon from all bookmarks
+    return await withRLS(auth.userId, async (tx) => {
       await tx.bookmark.updateMany({
-        where: {
-          userId: auth.userId,
-          icon: icon
-        },
-        data: {
-          icon: null
-        }
+        where: { userId: auth.userId, icon },
+        data: { icon: null },
       })
-
-      // Delete icon preset
       await tx.userPreset.deleteMany({
-        where: {
-          userId: auth.userId,
-          type: 'ICON',
-          value: icon
-        }
+        where: { userId: auth.userId, type: 'ICON', value: icon },
       })
+      return NextResponse.json({ success: true })
     })
-
-    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Failed to delete icon:', error)
     return NextResponse.json(

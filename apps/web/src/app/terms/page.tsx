@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 
+export const dynamic = 'force-static'
+
 export const metadata: Metadata = {
   title: 'Terms of Service',
   description: 'Read the LinkMine terms of service — the rules for using our bookmark manager.',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, useOptimistic, useTransition, useDeferredValue } from 'react'
 import type { Bookmark, Folder, BookmarkFilters } from '@linkmine/shared'
 import { Sidebar } from './Sidebar'
 import { BookmarkGrid } from './BookmarkGrid'
@@ -80,7 +80,6 @@ function saveFilters(f: BookmarkFilters) {
 
 interface Props {
   initialBookmarks: Bookmark[]
-  initialTotal: number
   initialFolders: Folder[]
   initialTagsWithCounts: Array<{ name: string; count: number }>
   initialIconsWithCounts: Array<{ icon: string; count: number }>
@@ -88,37 +87,30 @@ interface Props {
   user: { name: string; image: string | null }
 }
 
-function countBookmarksInFolderTree(folder: Folder): number {
-  const ownCount = folder._count?.bookmarks ?? 0
-  const childrenCount = (folder.children ?? []).reduce(
-    (sum, child) => sum + countBookmarksInFolderTree(child),
-    0,
-  )
-  return ownCount + childrenCount
-}
-
-function countBookmarksInFolders(folders: Folder[]): number {
-  return folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
-}
-
-export function DashboardClient({ initialBookmarks, initialTotal, initialFolders, initialTagsWithCounts, initialIconsWithCounts, initialDomainPreferences, user }: Props) {
+export function DashboardClient({ initialBookmarks, initialFolders, initialTagsWithCounts, initialIconsWithCounts, initialDomainPreferences, user }: Props) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
-  const [total, setTotal] = useState(initialTotal)
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
   const [domainPreferences, setDomainPreferences] = useState<Record<string, boolean>>(initialDomainPreferences)
-  const [unsortedCount, setUnsortedCount] = useState(
-    Math.max(initialTotal - countBookmarksInFolders(initialFolders), 0),
-  )
   const [selectedFolderId, setSelectedFolderId] = useState<string | null | 'all'>('all')
   const [folderHierarchy, setFolderHierarchy] = useState<Array<{ id: string | 'all'; name: string }>>([
     { id: 'all', name: 'All bookmarks' }
   ])
   const [currentSubfolders, setCurrentSubfolders] = useState<Folder[]>([])
   const [query, setQuery] = useState('')
+  const deferredQuery = useDeferredValue(query)
   const [filters, setFilters] = useState<BookmarkFilters>(DEFAULT_FILTERS)
   const [loading, setLoading] = useState(false)
   const [activeView, setActiveView] = useState<'bookmarks' | 'tags-icons'>('bookmarks')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Optimistic UI for instant bookmark deletion
+  const [optimisticBookmarks, removeOptimisticBookmark] = useOptimistic(
+    bookmarks,
+    (state, deletedId: string) => state.filter((b) => b.id !== deletedId),
+  )
+
+  // Transition for non-urgent UI updates (filters, search, navigation)
+  const [isPending, startTransition] = useTransition()
 
   // Modal state
   const [bookmarkForm, setBookmarkForm] = useState<{
@@ -145,7 +137,6 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
   }>({ open: false })
   const [returnToBookmarkAfterFolder, setReturnToBookmarkAfterFolder] = useState(false)
 
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null)
   const sseRefreshTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
   // Load persisted filters on mount
@@ -170,52 +161,94 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     return Array.from(set)
   }, [bookmarks])
 
-  const fetchBookmarks = useCallback(
-    async (opts: {
-      folderId?: string | null | 'all'
-      q?: string
-      page?: number
-      filters?: BookmarkFilters
-    } = {}) => {
-      setLoading(true)
-      try {
-        const f = opts.filters ?? filters
-        const params = new URLSearchParams()
-        if (opts.q) params.set('q', opts.q)
-        if (opts.folderId && opts.folderId !== 'all') params.set('folderId', opts.folderId)
-        params.set('page', String(opts.page ?? 1))
-        params.set('pageSize', '20')
-
-        if (f.tags?.length) params.set('tags', f.tags.join(','))
-        if (f.icon) params.set('icon', f.icon)
-        if (f.sortBy) params.set('sortBy', f.sortBy)
-        if (f.sortDir) params.set('sortDir', f.sortDir)
-
-        const res = await fetch(`/api/bookmarks?${params}`)
-        if (!res.ok) throw new Error('Failed to fetch bookmarks')
-        const data = await res.json()
-        setBookmarks(data.bookmarks)
-        setTotal(data.total)
-      } finally {
-        setLoading(false)
-      }
-    },
-    [filters],
+  // Derive unsorted count from all bookmarks (no separate API call needed)
+  const unsortedCount = useMemo(
+    () => bookmarks.filter((b) => !b.folderId).length,
+    [bookmarks],
   )
 
-  const fetchFolders = useCallback(async () => {
-    const [foldersRes, unsortedRes] = await Promise.all([
-      fetch('/api/folders'),
-      fetch('/api/bookmarks?folderId=none&page=1&pageSize=1'),
-    ])
+  // Client-side filtering: view → search → tags → icon → reminder → sort
+  // Reads from optimisticBookmarks so optimistic deletes are reflected instantly
+  const filteredBookmarks = useMemo(() => {
+    let result = optimisticBookmarks
 
-    if (foldersRes.ok) {
-      setFolders(await foldersRes.json())
+    // 1. View filter (folder selection)
+    if (selectedFolderId === 'none') {
+      result = result.filter((b) => !b.folderId)
+    } else if (selectedFolderId && selectedFolderId !== 'all') {
+      // Include bookmarks in this folder AND its child folders
+      const childFolderIds = new Set<string>()
+      childFolderIds.add(selectedFolderId)
+      const parentFolder = folders.find((f) => f.id === selectedFolderId)
+      if (parentFolder?.children) {
+        parentFolder.children.forEach((c) => childFolderIds.add(c.id))
+      }
+      result = result.filter((b) => b.folderId && childFolderIds.has(b.folderId))
     }
 
-    if (unsortedRes.ok) {
-      const data = await unsortedRes.json()
-      setUnsortedCount(data.total ?? 0)
+    // 2. Search filter (uses deferredQuery for responsive input)
+    const q = deferredQuery.trim().toLowerCase()
+    if (q) {
+      result = result.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.url.toLowerCase().includes(q) ||
+          b.tags.some((t) => t.toLowerCase().includes(q)),
+      )
+    }
+
+    // 3. Tag filter
+    if (filters.tags?.length) {
+      result = result.filter((b) =>
+        filters.tags!.some((t) => b.tags.includes(t)),
+      )
+    }
+
+    // 4. Icon filter
+    if (filters.icon) {
+      result = result.filter((b) => b.icon === filters.icon)
+    }
+
+    // 5. Reminder filter
+    if (filters.hasReminder) {
+      result = result.filter((b) => b.reminderDate !== null)
+    }
+
+    // 6. Sort
+    const sortBy = filters.sortBy ?? 'createdAt'
+    const sortDir = filters.sortDir ?? 'desc'
+    const dirMul = sortDir === 'asc' ? 1 : -1
+
+    result = [...result].sort((a, b) => {
+      const aVal = a[sortBy]
+      const bVal = b[sortBy]
+      // nulls: asc → nulls first, desc → nulls last
+      if (aVal == null && bVal == null) return 0
+      if (aVal == null) return sortDir === 'asc' ? -1 : 1
+      if (bVal == null) return sortDir === 'asc' ? 1 : -1
+      return aVal < bVal ? -1 * dirMul : aVal > bVal ? 1 * dirMul : 0
+    })
+
+    return result
+  }, [optimisticBookmarks, selectedFolderId, deferredQuery, filters, folders])
+
+  // Refresh all bookmarks from server (used after mutations and SSE events)
+  const fetchBookmarks = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/bookmarks?pageSize=500')
+      if (!res.ok) throw new Error('Failed to fetch bookmarks')
+      const data = await res.json()
+      setBookmarks(data.bookmarks)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const fetchFolders = useCallback(async () => {
+    const res = await fetch('/api/folders')
+    if (res.ok) {
+      setFolders(await res.json())
     }
   }, [])
 
@@ -233,14 +266,14 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
   const refreshFromServer = useCallback(async () => {
     await Promise.all([
-      fetchBookmarks({ folderId: selectedFolderId, q: query }),
+      fetchBookmarks(),
       fetchFolders(),
       fetchDomainPreferences(),
     ])
-  }, [fetchBookmarks, fetchFolders, fetchDomainPreferences, selectedFolderId, query])
+  }, [fetchBookmarks, fetchFolders, fetchDomainPreferences])
 
   // Navigate to a folder and update breadcrumbs
-  const navigateToFolder = useCallback((folderId: string | null | 'all', folderName?: string) => {
+  const navigateToFolder = useCallback((folderId: string | null | 'all', _folderName?: string) => {
     setSelectedFolderId(folderId)
 
     if (folderId === 'all') {
@@ -277,8 +310,8 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
       }
     }
 
-    void fetchBookmarks({ folderId, q: query })
-  }, [folders, query, fetchBookmarks])
+    // No fetch needed — filteredBookmarks memo reacts to selectedFolderId change
+  }, [folders])
 
   // Go back in breadcrumb navigation
   const goBackToParent = useCallback(() => {
@@ -318,20 +351,12 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
   const handleSearch = (q: string) => {
     setQuery(q)
-    if (searchTimeout.current) clearTimeout(searchTimeout.current)
-    searchTimeout.current = setTimeout(() => {
-      fetchBookmarks({ folderId: selectedFolderId, q })
-    }, 300)
-  }
-
-  const handleFolderSelect = (id: string | null | 'all') => {
-    navigateToFolder(id)
   }
 
   const handleFiltersChange = (next: BookmarkFilters) => {
     setFilters(next)
     saveFilters(next)
-    fetchBookmarks({ folderId: selectedFolderId, q: query, filters: next })
+    // No fetch needed — filteredBookmarks memo reacts to filters change
   }
 
   const handleFiltersReset = () => {
@@ -344,7 +369,7 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
 
   const handleBookmarkSaved = async () => {
     setBookmarkForm({ open: false })
-    await fetchBookmarks({ folderId: selectedFolderId, q: query })
+    await fetchBookmarks()
     await fetchFolders()
   }
 
@@ -389,20 +414,25 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
     const id = deleteConfirm.bookmarkId
     if (!id) return
     setDeleteConfirm({ open: false })
-    const res = await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
-    if (!res.ok) {
-      alert('Could not delete bookmark. Please try again.')
-      return
-    }
-    setBookmarks((prev) => prev.filter((b) => b.id !== id))
-    setTotal((t) => t - 1)
-    await fetchFolders()
+
+    startTransition(async () => {
+      removeOptimisticBookmark(id)
+
+      const res = await fetch(`/api/bookmarks/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        alert('Could not delete bookmark. Please try again.')
+        return
+      }
+
+      setBookmarks((prev) => prev.filter((b) => b.id !== id))
+      await fetchFolders()
+    })
   }
 
   const handleDeleteFolder = async (id: string) => {
     if (!confirm('Delete this folder? Bookmarks inside will be moved to "All bookmarks".')) return
     await fetch(`/api/folders/${id}`, { method: 'DELETE' })
-    await Promise.all([fetchFolders(), fetchBookmarks({ folderId: 'all', q: query })])
+    await Promise.all([fetchFolders(), fetchBookmarks()])
 
     // If the deleted folder is currently selected, navigate back to parent or "All bookmarks"
     if (selectedFolderId === id) {
@@ -621,9 +651,9 @@ export function DashboardClient({ initialBookmarks, initialTotal, initialFolders
               )}
 
               <BookmarkGrid
-                bookmarks={bookmarks}
-                total={total}
-                loading={loading}
+                bookmarks={filteredBookmarks}
+                total={filteredBookmarks.length}
+                loading={loading || isPending}
                 folders={folders}
                 domainPreferences={domainPreferences}
                 onDomainPreferenceChange={handleDomainPreferenceChange}

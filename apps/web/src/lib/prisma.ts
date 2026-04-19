@@ -16,64 +16,27 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 // ============================================================================
 
 /**
- * Set the current user context for Row Level Security policies.
- * This should be called before any database operations that require user isolation.
+ * Transaction client type used inside withRLS callbacks.
+ * Includes all model operations, $queryRaw, and $executeRaw.
  */
-export async function setRLSContext(userId: string | null): Promise<void> {
-  if (userId) {
-    await prisma.$executeRaw`SELECT set_current_user_id(${userId})`
-  } else {
-    await prisma.$executeRaw`SELECT set_config('app.current_user_id', NULL, false)`
-  }
-}
+export type PrismaTx = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>
 
 /**
- * Execute database operations with RLS context set for a specific user.
- * Automatically cleans up the context after execution.
+ * Execute database operations within a transaction with RLS context set
+ * for the specified user. Uses SET LOCAL so the context is scoped to the
+ * transaction only — safe with Supabase PgBouncer (transaction pooling).
+ *
+ * All database access in authenticated routes should go through this helper.
  */
-export async function withRLSContext<T>(
+export async function withRLS<T>(
   userId: string,
-  operation: () => Promise<T>
+  fn: (tx: PrismaTx) => Promise<T>,
 ): Promise<T> {
-  await setRLSContext(userId)
-  try {
-    return await operation()
-  } finally {
-    await setRLSContext(null)
-  }
-}
-
-/**
- * Create a Prisma client instance that automatically sets RLS context
- * for a specific user on every transaction.
- */
-export function createUserPrismaClient(userId: string) {
-  return prisma.$extends({
-    query: {
-      $allModels: {
-        async $allOperations({ operation, model, args, query }) {
-          // Set RLS context before the operation
-          await setRLSContext(userId)
-
-          try {
-            return await query(args)
-          } finally {
-            // Clean up context after the operation
-            await setRLSContext(null)
-          }
-        },
-      },
-    },
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_user_id', ${userId}, true)`
+    return fn(tx)
   })
-}
-
-/**
- * Get the current user ID from RLS context.
- * Useful for debugging and verification.
- */
-export async function getCurrentRLSUserId(): Promise<string | null> {
-  const result = await prisma.$queryRaw<[{ get_current_user_id: string | null }]>`
-    SELECT get_current_user_id() as get_current_user_id
-  `
-  return result[0]?.get_current_user_id || null
 }

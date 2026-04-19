@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api'
 
 function parseHTML(htmlContent: string): Array<{url: string, title: string, tags: string[], folder?: string}> {
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid bookmarks found in file' }, { status: 400 })
     }
 
-    // Create folders if they don't exist and get folder mapping
+    // Batch-fetch existing folders for this user instead of N+1 lookups
     const folderMap = new Map<string, string>()
     const uniqueFolders = [...new Set(
       bookmarksToImport
@@ -182,67 +182,62 @@ export async function POST(request: NextRequest) {
         .filter(folder => folder && folder !== 'Ungrouped')
     )] as string[]
 
-    for (const folderName of uniqueFolders) {
-      const existingFolder = await prisma.folder.findFirst({
-        where: { name: folderName, userId: auth.userId }
-      })
-
-      if (existingFolder) {
-        folderMap.set(folderName, existingFolder.id)
-      } else {
-        const newFolder = await prisma.folder.create({
-          data: {
-            name: folderName,
-            userId: auth.userId,
-            parentId: null
-          }
+    return await withRLS(auth.userId, async (tx) => {
+      if (uniqueFolders.length > 0) {
+        const existingFolders = await tx.folder.findMany({
+          where: { userId: auth.userId, name: { in: uniqueFolders }, parentId: null },
+          select: { id: true, name: true },
         })
-        folderMap.set(folderName, newFolder.id)
-      }
-    }
+        for (const f of existingFolders) folderMap.set(f.name, f.id)
 
-    // Import bookmarks
-    let importedCount = 0
-    let skippedCount = 0
-
-    for (const bookmark of bookmarksToImport) {
-      try {
-        // Check if bookmark already exists
-        const existing = await prisma.bookmark.findFirst({
-          where: {
-            url: bookmark.url,
-            userId: auth.userId
-          }
-        })
-
-        if (existing) {
-          skippedCount++
-          continue
+        const foldersToCreate = uniqueFolders.filter(name => !folderMap.has(name))
+        if (foldersToCreate.length > 0) {
+          await tx.folder.createMany({
+            data: foldersToCreate.map(name => ({ name, userId: auth.userId, parentId: null })),
+            skipDuplicates: true,
+          })
+          const newFolders = await tx.folder.findMany({
+            where: { userId: auth.userId, name: { in: foldersToCreate }, parentId: null },
+            select: { id: true, name: true },
+          })
+          for (const f of newFolders) folderMap.set(f.name, f.id)
         }
+      }
 
-        // Create bookmark
-        await prisma.bookmark.create({
-          data: {
+      // Batch-check existing URLs instead of N+1 lookups per bookmark
+      const allUrls = bookmarksToImport.map(b => b.url)
+      const existingBookmarks = await tx.bookmark.findMany({
+        where: { userId: auth.userId, url: { in: allUrls } },
+        select: { url: true },
+      })
+      const existingUrlSet = new Set(existingBookmarks.map(b => b.url))
+
+      const newBookmarks = bookmarksToImport.filter(b => !existingUrlSet.has(b.url))
+      const skippedCount = bookmarksToImport.length - newBookmarks.length
+
+      let importedCount = 0
+      if (newBookmarks.length > 0) {
+        const result = await tx.bookmark.createMany({
+          data: newBookmarks.map(bookmark => ({
             url: bookmark.url,
             title: bookmark.title,
             tags: bookmark.tags,
             userId: auth.userId,
-            folderId: (bookmark.folder && bookmark.folder !== 'Ungrouped') ? folderMap.get(bookmark.folder) : null
-          }
+            folderId: (bookmark.folder && bookmark.folder !== 'Ungrouped')
+              ? folderMap.get(bookmark.folder) ?? null
+              : null,
+          })),
+          skipDuplicates: true,
         })
-
-        importedCount++
-      } catch (error) {
-        console.error('Error importing bookmark:', bookmark.url, error)
-        skippedCount++
+        importedCount = result.count
       }
-    }
 
-    return NextResponse.json({
-      success: true,
-      imported: importedCount,
-      skipped: skippedCount,
-      total: bookmarksToImport.length
+      return NextResponse.json({
+        success: true,
+        imported: importedCount,
+        skipped: skippedCount,
+        total: bookmarksToImport.length
+      })
     })
 
   } catch (error) {

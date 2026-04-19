@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 import { requireAuth, badRequest, normalizeTags } from '@/lib/api'
 import { broadcastToUser } from '@/lib/sse'
 
@@ -22,7 +22,7 @@ const QuerySchema = z.object({
   sortBy: z.enum(['createdAt', 'reminderDate', 'lastAccessed']).optional().default('createdAt'),
   sortDir: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
+  pageSize: z.coerce.number().int().min(1).max(500).optional().default(500),
 })
 
 // GET /api/bookmarks
@@ -62,18 +62,22 @@ export async function GET(request: NextRequest) {
       ? { createdAt: sortDir }
       : { [sortBy]: { sort: sortDir, nulls: sortDir === 'asc' ? 'first' : 'last' } }
 
-  const [bookmarks, total] = await Promise.all([
-    prisma.bookmark.findMany({
-      where,
-      include: { folder: { select: { id: true, name: true } } },
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.bookmark.count({ where }),
-  ])
+  const [bookmarks, total] = await withRLS(auth.userId, async (tx) => {
+    return Promise.all([
+      tx.bookmark.findMany({
+        where,
+        include: { folder: { select: { id: true, name: true } } },
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      tx.bookmark.count({ where }),
+    ])
+  })
 
-  return NextResponse.json({ bookmarks, total, page, pageSize })
+  return NextResponse.json({ bookmarks, total, page, pageSize }, {
+    headers: { 'Cache-Control': 'private, no-cache' },
+  })
 }
 
 // POST /api/bookmarks
@@ -104,69 +108,64 @@ export async function POST(request: NextRequest) {
     processedIcon = processedIcon.slice(0, 10)
   }
 
-  // Verify folder ownership if provided
-  if (folderId) {
-    const folder = await prisma.folder.findFirst({
-      where: { id: folderId, userId: auth.userId },
-    })
-    if (!folder) return badRequest('Folder not found')
-  }
-
-  try {
-    const bookmark = await prisma.bookmark.create({
-      data: {
-        url,
-        title,
-        tags: normalizedTags,
-        icon: processedIcon,
-        reminderDate: reminderDate ? new Date(reminderDate) : null,
-        folderId: folderId ?? null,
-        userId: auth.userId,
-      },
-      include: { folder: { select: { id: true, name: true } } },
-    })
-
-    if (normalizedTags.length > 0) {
-      await Promise.all(
-        normalizedTags.map((value) => prisma.$executeRaw`
-          INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
-          VALUES (${crypto.randomUUID()}, ${auth.userId}, 'TAG'::"public"."PresetType", ${value}, NOW())
-          ON CONFLICT ("userId", "type", "value") DO NOTHING
-        `),
-      )
+  return withRLS(auth.userId, async (tx) => {
+    // Verify folder ownership if provided
+    if (folderId) {
+      const folder = await tx.folder.findFirst({
+        where: { id: folderId, userId: auth.userId },
+      })
+      if (!folder) return badRequest('Folder not found')
     }
 
-    // Only save non-favicon icons as presets (emojis, not URLs)
-    if (processedIcon && !processedIcon.startsWith('http')) {
-      await prisma.$executeRaw`
-        INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
-        VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${processedIcon}, NOW())
-        ON CONFLICT ("userId", "type", "value") DO NOTHING
-      `
-    }
-
-    // Notify any open dashboard tabs for this user
-    broadcastToUser(auth.userId, { type: 'bookmark:saved', bookmark })
-
-    return NextResponse.json(bookmark, { status: 201 })
-  } catch (err: unknown) {
-    const e = err as { code?: string }
-    if (e?.code === 'P2002') {
-      // Find the existing bookmark and return it
-      const existingBookmark = await prisma.bookmark.findFirst({
-        where: {
+    try {
+      const bookmark = await tx.bookmark.create({
+        data: {
+          url,
+          title,
+          tags: normalizedTags,
+          icon: processedIcon,
+          reminderDate: reminderDate ? new Date(reminderDate) : null,
+          folderId: folderId ?? null,
           userId: auth.userId,
-          url: url
         },
-        include: { folder: { select: { id: true, name: true } } }
+        include: { folder: { select: { id: true, name: true } } },
       })
 
-      return NextResponse.json({
-        error: 'This URL has already been bookmarked',
-        existingBookmark,
-        message: 'You can edit the existing bookmark instead'
-      }, { status: 409 })
+      if (normalizedTags.length > 0) {
+        await Promise.all(
+          normalizedTags.map((value) => tx.$executeRaw`
+            INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
+            VALUES (${crypto.randomUUID()}, ${auth.userId}, 'TAG'::"public"."PresetType", ${value}, NOW())
+            ON CONFLICT ("userId", "type", "value") DO NOTHING
+          `),
+        )
+      }
+
+      if (processedIcon && !processedIcon.startsWith('http')) {
+        await tx.$executeRaw`
+          INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
+          VALUES (${crypto.randomUUID()}, ${auth.userId}, 'ICON'::"public"."PresetType", ${processedIcon}, NOW())
+          ON CONFLICT ("userId", "type", "value") DO NOTHING
+        `
+      }
+
+      broadcastToUser(auth.userId, { type: 'bookmark:saved', bookmark })
+      return NextResponse.json(bookmark, { status: 201 })
+    } catch (err: unknown) {
+      const e = err as { code?: string }
+      if (e?.code === 'P2002') {
+        const existingBookmark = await tx.bookmark.findFirst({
+          where: { userId: auth.userId, url },
+          include: { folder: { select: { id: true, name: true } } },
+        })
+
+        return NextResponse.json({
+          error: 'This URL has already been bookmarked',
+          existingBookmark,
+          message: 'You can edit the existing bookmark instead'
+        }, { status: 409 })
+      }
+      throw err
     }
-    throw err
-  }
+  })
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
 
 const UpdateGroupingSchema = z.object({
@@ -24,36 +24,40 @@ export async function GET(request: NextRequest) {
   const { domain } = parsed.data
 
   try {
-    if (domain) {
-      // Get specific domain preference
-      const preference = await prisma.userPreference.findFirst({
-        where: {
-          userId: auth.userId,
-          key: `domain_grouping:${domain}`,
-        },
-      })
+    return await withRLS(auth.userId, async (tx) => {
+      if (domain) {
+        const preference = await tx.userPreference.findFirst({
+          where: {
+            userId: auth.userId,
+            key: `domain_grouping:${domain}`,
+          },
+        })
 
-      return NextResponse.json({
-        domain,
-        grouped: preference?.value === 'false' ? false : true, // Default to grouped
-      })
-    } else {
-      // Get all domain preferences
-      const preferences = await prisma.userPreference.findMany({
-        where: {
-          userId: auth.userId,
-          key: { startsWith: 'domain_grouping:' },
-        },
-      })
+        return NextResponse.json({
+          domain,
+          grouped: preference?.value === 'false' ? false : true,
+        }, {
+          headers: { 'Cache-Control': 'private, max-age=300' },
+        })
+      } else {
+        const preferences = await tx.userPreference.findMany({
+          where: {
+            userId: auth.userId,
+            key: { startsWith: 'domain_grouping:' },
+          },
+        })
 
-      const domainPreferences = preferences.reduce((acc: Record<string, boolean>, pref: any) => {
-        const domain = pref.key.replace('domain_grouping:', '')
-        acc[domain] = pref.value === 'false' ? false : true
-        return acc
-      }, {} as Record<string, boolean>)
+        const domainPreferences = preferences.reduce((acc: Record<string, boolean>, pref: any) => {
+          const domain = pref.key.replace('domain_grouping:', '')
+          acc[domain] = pref.value === 'false' ? false : true
+          return acc
+        }, {} as Record<string, boolean>)
 
-      return NextResponse.json(domainPreferences)
-    }
+        return NextResponse.json(domainPreferences, {
+          headers: { 'Cache-Control': 'private, max-age=300' },
+        })
+      }
+    })
   } catch (error) {
     console.error('Failed to fetch domain grouping preferences:', error)
     return NextResponse.json(
@@ -77,27 +81,29 @@ export async function POST(request: NextRequest) {
   const { domain, grouped } = parsed.data
 
   try {
-    await prisma.userPreference.upsert({
-      where: {
-        userId_key: {
+    return await withRLS(auth.userId, async (tx) => {
+      await tx.userPreference.upsert({
+        where: {
+          userId_key: {
+            userId: auth.userId,
+            key: `domain_grouping:${domain}`,
+          },
+        },
+        update: {
+          value: grouped.toString(),
+        },
+        create: {
           userId: auth.userId,
           key: `domain_grouping:${domain}`,
+          value: grouped.toString(),
         },
-      },
-      update: {
-        value: grouped.toString(),
-      },
-      create: {
-        userId: auth.userId,
-        key: `domain_grouping:${domain}`,
-        value: grouped.toString(),
-      },
-    })
+      })
 
-    return NextResponse.json({
-      domain,
-      grouped,
-      message: grouped ? 'Domain will be grouped' : 'Domain will be ungrouped'
+      return NextResponse.json({
+        domain,
+        grouped,
+        message: grouped ? 'Domain will be grouped' : 'Domain will be ungrouped'
+      })
     })
   } catch (error) {
     console.error('Failed to update domain grouping preference:', error)

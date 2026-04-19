@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 
+export const dynamic = 'force-static'
+
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'LinkMine privacy policy — how we collect, use, and protect your data.',

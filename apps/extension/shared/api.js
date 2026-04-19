@@ -24,10 +24,27 @@ function jsonHeaders(accessToken) {
 
 /**
  * Exchange the refresh token for a fresh JWT access token.
- * Called when the cached access token is absent or nearing expiry.
+ * Tries the new OAuth endpoint first (with token rotation),
+ * falls back to the legacy endpoint for pre-OAuth tokens.
  */
 export async function apiRefreshAccessToken(refreshToken) {
   try {
+    // Try OAuth refresh (token rotation)
+    const oauthRes = await fetch(`${BASE_URL}/api/oauth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    if (oauthRes.ok) {
+      const data = await oauthRes.json()
+      // Token rotation: store the new refresh token
+      if (data.refresh_token) {
+        await chrome.storage.local.set({ authToken: data.refresh_token })
+      }
+      return { ok: true, accessToken: data.access_token || data.accessToken, expiresAt: data.accessTokenExpiresAt || new Date(Date.now() + (data.expires_in || 3600) * 1000).toISOString() }
+    }
+
+    // Fall back to legacy refresh (no token rotation)
     const res = await fetch(`${BASE_URL}/api/extension/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -43,6 +60,9 @@ export async function apiRefreshAccessToken(refreshToken) {
     return { ok: false, error: 'Network error', status: 0 }
   }
 }
+
+// In-flight refresh promise to prevent concurrent token refreshes
+let _refreshInFlight = null
 
 /**
  * Returns a valid access token, refreshing silently if the cached one is stale.
@@ -63,15 +83,25 @@ export async function ensureAccessToken(refreshToken) {
     return accessToken
   }
 
-  // Cache miss or expiring soon — refresh
-  const result = await apiRefreshAccessToken(refreshToken)
-  if (!result.ok) return null
+  // If a refresh is already in-flight, wait for it instead of firing a second one
+  if (_refreshInFlight) return _refreshInFlight
 
-  await chrome.storage.local.set({
-    accessToken:       result.accessToken,
-    accessTokenExpiry: new Date(result.expiresAt).getTime(),
-  })
-  return result.accessToken
+  _refreshInFlight = (async () => {
+    try {
+      const result = await apiRefreshAccessToken(refreshToken)
+      if (!result.ok) return null
+
+      await chrome.storage.local.set({
+        accessToken:       result.accessToken,
+        accessTokenExpiry: new Date(result.expiresAt).getTime(),
+      })
+      return result.accessToken
+    } finally {
+      _refreshInFlight = null
+    }
+  })()
+
+  return _refreshInFlight
 }
 
 // ─── API functions ────────────────────────────────────────────────────────────

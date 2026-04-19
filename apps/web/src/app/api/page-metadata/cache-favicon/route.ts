@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth, badRequest } from '@/lib/api'
-import { prisma } from '@/lib/prisma'
+import { withRLS } from '@/lib/prisma'
 
 const CacheFaviconSchema = z.object({
   url: z.string().url('Invalid URL'),
@@ -23,19 +23,26 @@ export async function POST(request: NextRequest) {
   const { url, faviconUrl } = parsed.data
 
   try {
-    // Extract domain for caching key
     const domain = new URL(url).origin
 
-    // Use upsert to cache the favicon URL per domain per user
-    // This prevents repeated network calls for the same domain
-    await prisma.$executeRaw`
-      INSERT INTO "public"."UserPreset" ("id", "userId", "type", "value", "createdAt")
-      VALUES (${crypto.randomUUID()}, ${auth.userId}, 'FAVICON_CACHE'::"public"."PresetType", ${JSON.stringify({ domain, faviconUrl })}, NOW())
-      ON CONFLICT ("userId", "type", "value") DO UPDATE SET
-        "createdAt" = NOW()
-    `
+    return await withRLS(auth.userId, async (tx) => {
+      await tx.userPreference.upsert({
+        where: {
+          userId_key: {
+            userId: auth.userId,
+            key: `favicon_cache:${domain}`,
+          },
+        },
+        update: { value: faviconUrl },
+        create: {
+          userId: auth.userId,
+          key: `favicon_cache:${domain}`,
+          value: faviconUrl,
+        },
+      })
 
-    return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true })
+    })
   } catch (error) {
     console.error('Failed to cache favicon:', error)
     return NextResponse.json(

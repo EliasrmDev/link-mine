@@ -48,9 +48,9 @@ model VerificationToken {
 // ─── Application models ───────────────────────────────────────────────────────
 
 model User {
-  id               String             @id @default(cuid())
+  id               String                  @id @default(cuid())
   name             String?
-  email            String?            @unique
+  email            String?                 @unique
   emailVerified    DateTime?
   image            String?
   accounts         Account[]
@@ -60,8 +60,9 @@ model User {
   presets          UserPreset[]
   preferences      UserPreference[]
   extensionTokens  ExtensionToken[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  oauthCodes       OAuthAuthorizationCode[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
 }
 
 enum PresetType {
@@ -75,7 +76,7 @@ model UserPreset {
   userId    String
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      PresetType
-  value     String
+  value     String     @db.VarChar(500)
   createdAt DateTime   @default(now())
 
   @@unique([userId, type, value])
@@ -86,8 +87,8 @@ model UserPreference {
   id     String @id @default(cuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  key    String
-  value  String
+  key    String @db.VarChar(255)
+  value  String @db.VarChar(5000)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -97,7 +98,7 @@ model UserPreference {
 
 model Folder {
   id        String     @id @default(cuid())
-  name      String
+  name      String     @db.VarChar(100)
   userId    String
   parentId  String?
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -115,8 +116,8 @@ model Folder {
 
 model Bookmark {
   id           String    @id @default(cuid())
-  url          String
-  title        String
+  url          String    @db.VarChar(2048)
+  title        String    @db.VarChar(500)
   tags         String[]
   icon         String?
   reminderDate DateTime?
@@ -131,6 +132,7 @@ model Bookmark {
   // One bookmark per URL per user
   @@unique([userId, url])
   @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
   @@index([folderId])
   @@index([reminderDate])
 }
@@ -143,9 +145,32 @@ model ExtensionToken {
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   label     String    @default("Chrome Extension")
+  scopes    String[]  @default([])
   lastUsed  DateTime?
   createdAt DateTime  @default(now())
   expiresAt DateTime
 
   @@index([userId])
+}
+
+// OAuth 2.0 Authorization Code — one-time use, 10-minute TTL
+// Used in the Authorization Code Flow + PKCE for the Chrome extension
+model OAuthAuthorizationCode {
+  id                  String    @id @default(cuid())
+  code                String    @unique
+  userId              String
+  clientId            String
+  redirectUri         String
+  scopes              String[]
+  codeChallenge       String
+  codeChallengeMethod String    @default("S256")
+  state               String
+  expiresAt           DateTime
+  usedAt              DateTime?
+  createdAt           DateTime  @default(now())
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([userId])
+  @@map("oauth_authorization_codes")
 }

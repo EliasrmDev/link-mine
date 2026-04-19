@@ -11,6 +11,7 @@
  */
 
 import { EventEmitter } from 'events'
+import { z } from 'zod'
 
 const bus = new EventEmitter()
 bus.setMaxListeners(2000) // allow many concurrent connections
@@ -22,9 +23,20 @@ export type SyncEvent =
   | { type: 'bookmark:deleted'; id: string }
   | { type: 'folders:changed' }
 
+const SyncEventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('bookmark:saved'), bookmark: z.record(z.unknown()) }),
+  z.object({ type: z.literal('bookmark:deleted'), id: z.string() }),
+  z.object({ type: z.literal('folders:changed') }),
+])
+
 // ─── Broadcast ───────────────────────────────────────────────────────────────
 
 export function broadcastToUser(userId: string, event: SyncEvent): void {
+  const result = SyncEventSchema.safeParse(event)
+  if (!result.success) {
+    console.error('SSE: invalid event shape, skipping broadcast:', result.error.issues)
+    return
+  }
   bus.emit(`u:${userId}`, event)
 }
 
