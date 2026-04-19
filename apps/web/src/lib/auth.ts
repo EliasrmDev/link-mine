@@ -40,7 +40,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account, profile: _profile }) {
       try {
         // For OAuth providers, check if user with same email exists
         if (account?.provider === 'google' || account?.provider === 'microsoft-entra-id') {
@@ -66,7 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return true
       }
     },
-    jwt({ token, user, account }) {
+    jwt({ token, user, account: _account }) {
       // Persist the DB user ID into the JWT on first sign-in
       if (user?.id) token.id = user.id
       return token
