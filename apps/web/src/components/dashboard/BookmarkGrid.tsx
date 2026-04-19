@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
-import type { Bookmark, Folder, DomainGroupedBookmark, DomainGroupingPreference, TreeNodeData } from '@linkmine/shared'
+import type { Bookmark, Folder, DomainGroupedBookmark, TreeNodeData } from '@linkmine/shared'
 import TreeView from '@/components/dashboard/TreeView'
 
 const STALE_DAYS = 30
@@ -254,8 +254,10 @@ function buildTreeFromBookmarks(parent: DomainGroupedBookmark): TreeNodeData[] {
 }
 
 // Debounce function for API calls
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
   let timeout: NodeJS.Timeout
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ((...args: any[]) => {
     clearTimeout(timeout)
     timeout = setTimeout(() => func(...args), wait)

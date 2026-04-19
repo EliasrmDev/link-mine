@@ -27,7 +27,7 @@ interface Props {
 }
 
 export function TagsIconsManager({
-  allTags,
+  allTags: _allTags,
   iconsInUse,
   initialTags,
   initialIcons,
@@ -324,6 +324,7 @@ export function TagsIconsManager({
                   >
                     <div className="flex items-center gap-3">
                       {iconData.icon.startsWith('http') ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={iconData.icon}
                           alt=""
@@ -456,7 +457,7 @@ export function TagsIconsManager({
         <Modal onClose={() => setDeleteConfirm(null)} title={`Delete ${deleteConfirm.type}`}>
           <div className="space-y-4">
             <p className="text-gray-700 dark:text-gray-300">
-              Are you sure you want to delete the {deleteConfirm.type} "{deleteConfirm.name}"?
+              Are you sure you want to delete the {deleteConfirm.type} &ldquo;{deleteConfirm.name}&rdquo;?
               This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">

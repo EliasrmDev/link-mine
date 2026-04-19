@@ -336,7 +336,7 @@ Total processed: ${result.total}`)
                 alert(`Import failed: ${result.error || 'Unknown error'}`)
               }
             } catch (error) {
-              alert('Error importing bookmarks. Please check your file format and try again.')
+              alert(`Error importing bookmarks. Please check your file format and try again. Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
             } finally {
               setImporting(false)
               // Reset input

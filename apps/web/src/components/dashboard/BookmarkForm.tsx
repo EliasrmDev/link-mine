@@ -90,7 +90,7 @@ export function BookmarkForm({
   const [url, setUrl] = useState(bookmark?.url ?? initialDraft?.url ?? '')
   const [title, setTitle] = useState(bookmark?.title ?? initialDraft?.title ?? '')
   const [tagInput, setTagInput] = useState(bookmark?.tags.join(', ') ?? initialDraft?.tags.join(', ') ?? '')
-  const [icon, setIcon] = useState(bookmark?.icon ?? initialDraft?.icon ?? '')
+  const [icon, _setIcon] = useState(bookmark?.icon ?? initialDraft?.icon ?? '')
   const [currentFavicon, setCurrentFavicon] = useState<string>(bookmark?.icon?.startsWith('http') ? bookmark.icon : '')
   const [customIcon, setCustomIcon] = useState<string>(
     (bookmark?.icon && !bookmark.icon.startsWith('http')) ? bookmark.icon : (initialDraft?.icon && !initialDraft.icon.startsWith('http')) ? initialDraft.icon : ''
@@ -529,6 +529,7 @@ export function BookmarkForm({
                   </button>
                 </div>
                 <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={currentFavicon}
                     alt="Current favicon"
@@ -561,6 +562,7 @@ export function BookmarkForm({
             {(suggestedFavicon || cachedFavicon) && !currentFavicon && (
               <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={suggestedFavicon || cachedFavicon}
                     alt="Page favicon"
@@ -729,7 +731,7 @@ export function BookmarkForm({
               Folder
             </label>
             <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-              Type folder name to create or select existing. Use "/" for subfolders (e.g., "Work/Projects")
+              Type folder name to create or select existing. Use &ldquo;/&rdquo; for subfolders (e.g., &ldquo;Work/Projects&rdquo;)
             </p>
             <div className="relative">
               <input

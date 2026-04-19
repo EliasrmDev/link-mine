@@ -273,7 +273,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   }, [fetchBookmarks, fetchFolders, fetchDomainPreferences])
 
   // Navigate to a folder and update breadcrumbs
-  const navigateToFolder = useCallback((folderId: string | null | 'all', _folderName?: string) => {
+  const navigateToFolder = useCallback((folderId: string | null | 'all') => {
     setSelectedFolderId(folderId)
 
     if (folderId === 'all') {
@@ -317,7 +317,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const goBackToParent = useCallback(() => {
     if (folderHierarchy.length > 1) {
       const parentLevel = folderHierarchy[folderHierarchy.length - 2]
-      navigateToFolder(parentLevel.id, parentLevel.name)
+      navigateToFolder(parentLevel.id)
     }
   }, [folderHierarchy, navigateToFolder])
 
@@ -438,7 +438,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     if (selectedFolderId === id) {
       if (folderHierarchy.length > 1) {
         const parentLevel = folderHierarchy[folderHierarchy.length - 2]
-        navigateToFolder(parentLevel.id, parentLevel.name)
+        navigateToFolder(parentLevel.id)
       } else {
         navigateToFolder('all')
       }
