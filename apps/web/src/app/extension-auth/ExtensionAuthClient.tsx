@@ -103,7 +103,7 @@ export function ExtensionAuthClient({ extensionId, isValidId, validationError = 
     }
 
     connect()
-  }, [extensionId, isValidId])
+  }, [extensionId, isValidId, validationError])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">

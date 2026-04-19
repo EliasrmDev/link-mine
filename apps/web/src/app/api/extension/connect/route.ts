@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 }
 
 // OPTIONS /api/extension/connect — CORS preflight
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {
@@ -104,7 +104,7 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 // DELETE /api/extension/connect — revoke all extension tokens for the user
-export async function DELETE(request: NextRequest) {
+export async function DELETE(_request: NextRequest) {
   const session = await auth()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

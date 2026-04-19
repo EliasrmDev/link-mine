@@ -2,7 +2,6 @@ import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://linkmine.eliasrm.dev'
-  const currentDate = new Date().toISOString()
 
   return [
     {

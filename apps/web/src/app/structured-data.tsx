@@ -1,6 +1,6 @@
 interface StructuredDataProps {
   type: 'WebApplication' | 'Organization' | 'BreadcrumbList' | 'WebSite'
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 }
 
 export function StructuredData({ type, data = {} }: StructuredDataProps) {

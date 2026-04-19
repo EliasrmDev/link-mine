@@ -31,23 +31,6 @@ function getFaviconUrl(url: string): string {
   }
 }
 
-// Helper to extract page title from HTML
-function extractTitleFromHtml(html: string): string {
-  const match = html.match(/<title[^>]*>([^<]*)<\/title>/i)
-  if (!match) return ''
-
-  // Decode HTML entities
-  const title = match[1]
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .trim()
-
-  return title
-}
 
 
 interface Props {
@@ -80,7 +63,6 @@ export function BookmarkForm({
   folders,
   defaultFolderId,
   initialDraft,
-  onOpenCreateFolder,
   onEditExisting,
   onSave,
   onClose,
@@ -90,7 +72,6 @@ export function BookmarkForm({
   const [url, setUrl] = useState(bookmark?.url ?? initialDraft?.url ?? '')
   const [title, setTitle] = useState(bookmark?.title ?? initialDraft?.title ?? '')
   const [tagInput, setTagInput] = useState(bookmark?.tags.join(', ') ?? initialDraft?.tags.join(', ') ?? '')
-  const [icon, _setIcon] = useState(bookmark?.icon ?? initialDraft?.icon ?? '')
   const [currentFavicon, setCurrentFavicon] = useState<string>(bookmark?.icon?.startsWith('http') ? bookmark.icon : '')
   const [customIcon, setCustomIcon] = useState<string>(
     (bookmark?.icon && !bookmark.icon.startsWith('http')) ? bookmark.icon : (initialDraft?.icon && !initialDraft.icon.startsWith('http')) ? initialDraft.icon : ''

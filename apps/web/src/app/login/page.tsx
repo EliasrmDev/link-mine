@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { auth, signIn } from '@/lib/auth'
 
@@ -102,9 +103,9 @@ export default async function LoginPage({
         </div>
 
         <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          <a href="/" className="hover:text-gray-700 dark:hover:text-gray-300">
+          <Link href="/" className="hover:text-gray-700 dark:hover:text-gray-300">
             &larr; Back to home
-          </a>
+          </Link>
         </p>
       </div>
     </div>

@@ -27,7 +27,6 @@ interface Props {
 }
 
 export function TagsIconsManager({
-  allTags: _allTags,
   iconsInUse,
   initialTags,
   initialIcons,

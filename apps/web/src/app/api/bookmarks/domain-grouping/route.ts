@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
           },
         })
 
-        const domainPreferences = preferences.reduce((acc: Record<string, boolean>, pref: any) => {
+        const domainPreferences = preferences.reduce((acc: Record<string, boolean>, pref: { key: string; value: string }) => {
           const domain = pref.key.replace('domain_grouping:', '')
           acc[domain] = pref.value === 'false' ? false : true
           return acc
