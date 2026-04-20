@@ -5,14 +5,14 @@ import type { BookmarkFilters } from '@linkmine/shared'
 
 interface Props {
   filters: BookmarkFilters
-  allTags: string[]
-  iconsInUse: string[]
+  allTagsWithCounts: { name: string; count: number }[]
+  iconsInUse: { icon: string; count: number }[]
   onChange: (f: BookmarkFilters) => void
   onReset: () => void
   onClose?: () => void
 }
 
-export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset, onClose }: Props) {
+export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, onReset, onClose }: Props) {
   const [open, setOpen] = useState(false)
 
   const activeCount = [
@@ -118,22 +118,25 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset, onC
             <div className="w-full sm:w-auto">
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Icon</p>
               <div className="grid grid-cols-8 sm:flex sm:flex-wrap gap-2 sm:gap-1">
-                {iconsInUse.map((icon) => {
+                {iconsInUse.map(({ icon, count }) => {
                   const active = filters.icon === icon
                   return (
                     <button
                       key={icon}
                       onClick={() => toggleIcon(icon)}
-                      className={`rounded p-2 sm:p-1 text-lg sm:text-base leading-none transition-colors min-h-[44px] sm:min-h-0 flex items-center justify-center ${
+                      className={`relative rounded p-2 sm:p-1 text-lg sm:text-base leading-none transition-colors min-h-[44px] sm:min-h-0 flex items-center justify-center ${
                         active
                           ? 'bg-brand-100 ring-1 ring-brand-500 dark:bg-brand-900/40'
                           : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                       aria-pressed={active}
-                      aria-label={`Filter by icon ${icon}`}
-                      title={`Filter by ${icon}`}
+                      aria-label={`Filter by icon ${icon} (${count} bookmarks)`}
+                      title={`Filter by ${icon} (${count} bookmarks)`}
                     >
                       {icon}
+                      <span className="absolute -bottom-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] rounded-full bg-gray-500 dark:bg-gray-600 text-white text-[9px] font-medium px-0.5 leading-none select-none">
+                        {count}
+                      </span>
                     </button>
                   )
                 })}
@@ -153,24 +156,25 @@ export function FilterBar({ filters, allTags, iconsInUse, onChange, onReset, onC
             </div>
 
             {/* Tags */}
-            {allTags.length > 0 && (
+            {allTagsWithCounts.length > 0 && (
               <div className="w-full sm:w-auto">
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Tags</p>
                 <div className="flex flex-wrap gap-2 sm:gap-1">
-                  {allTags.map((tag) => {
-                    const active = (filters.tags ?? []).includes(tag)
+                  {allTagsWithCounts.map(({ name, count }) => {
+                    const active = (filters.tags ?? []).includes(name)
                     return (
                       <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
-                        className={`rounded-full h-8 px-3 py-2 sm:px-2 sm:py-0.5 text-sm sm:text-xs font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center ${
+                        key={name}
+                        onClick={() => toggleTag(name)}
+                        className={`rounded-full h-8 px-3 py-2 sm:px-2 sm:py-0.5 text-sm sm:text-xs font-medium transition-colors min-h-[44px] sm:min-h-0 flex items-center gap-1 ${
                           active
                             ? 'bg-brand-600 text-white'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
                         }`}
                         aria-pressed={active}
                       >
-                        {tag}
+                        {name}
+                        <span className={`text-[10px] ${active ? 'opacity-80' : 'opacity-60'}`}>({count})</span>
                       </button>
                     )
                   })}

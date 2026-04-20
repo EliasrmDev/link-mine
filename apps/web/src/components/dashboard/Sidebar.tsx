@@ -29,6 +29,7 @@ export function Sidebar({
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [importMenuOpen, setImportMenuOpen] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [foldersExpanded, setFoldersExpanded] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
   const allBookmarksCount = totalBookmarksInTree + unsortedCount
@@ -76,31 +77,43 @@ export function Sidebar({
         {folders.length > 0 && (
           <div className="mt-3">
             <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                Folders
-              </span>
               <button
-                onClick={() => onAddFolder(null)}
-                aria-label="Add folder"
-                className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                onClick={() => setFoldersExpanded((e) => !e)}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-expanded={foldersExpanded}
+                aria-controls="sidebar-folders-list"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                <ChevronDown
+                  className={`h-3 w-3 transition-transform duration-200 ${foldersExpanded ? '' : '-rotate-90'}`}
+                />
+                Folders
               </button>
+              {foldersExpanded && (
+                <button
+                  onClick={() => onAddFolder(null)}
+                  aria-label="Add folder"
+                  className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              )}
             </div>
 
-            {folders.map((folder) => (
-              <FolderItem
-                key={folder.id}
-                folder={folder}
-                selectedFolderId={selectedFolderId}
-                onSelect={onSelectFolder}
-                onAddChild={(parentId) => onAddFolder(parentId)}
-                onEdit={onEditFolder}
-                onDelete={onDeleteFolder}
-              />
-            ))}
+            <div id="sidebar-folders-list">
+              {foldersExpanded && folders.map((folder) => (
+                <FolderItem
+                  key={folder.id}
+                  folder={folder}
+                  selectedFolderId={selectedFolderId}
+                  onSelect={onSelectFolder}
+                  onAddChild={(parentId) => onAddFolder(parentId)}
+                  onEdit={onEditFolder}
+                  onDelete={onDeleteFolder}
+                />
+              ))}
+            </div>
           </div>
         )}
 

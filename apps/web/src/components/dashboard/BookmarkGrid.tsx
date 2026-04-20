@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
 import type { Bookmark, Folder, DomainGroupedBookmark, TreeNodeData } from '@linkmine/shared'
 import TreeView from '@/components/dashboard/TreeView'
@@ -253,16 +253,7 @@ function buildTreeFromBookmarks(parent: DomainGroupedBookmark): TreeNodeData[] {
   return [root]
 }
 
-// Debounce function for API calls
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
-  let timeout: NodeJS.Timeout
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return ((...args: any[]) => {
-    clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }) as T
-}
+
 
 interface Props {
   bookmarks: Bookmark[]
@@ -276,35 +267,35 @@ interface Props {
   showOldLinks?: boolean
 }
 
-export function BookmarkGrid({ bookmarks, total, loading, domainPreferences: initialDomainPreferences, onDomainPreferenceChange, onEdit, onDelete, showOldLinks }: Props) {
-  const [domainPreferences, setDomainPreferences] = useState<Record<string, boolean>>(initialDomainPreferences)
+export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onDomainPreferenceChange, onEdit, onDelete, showOldLinks }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [loadingPreferences, setLoadingPreferences] = useState(false)
+  const pendingGroupingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Sync domain preferences when initial preferences change
-  useEffect(() => {
-    setDomainPreferences(initialDomainPreferences)
-  }, [initialDomainPreferences])
-
-  const updateDomainGrouping = debounce(async (domain: string, grouped: boolean) => {
-    setLoadingPreferences(true)
-    try {
-      const response = await fetch('/api/bookmarks/domain-grouping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, grouped }),
-      })
-
-      if (response.ok) {
-        setDomainPreferences(prev => ({ ...prev, [domain]: grouped }))
-        onDomainPreferenceChange(domain, grouped)
+  // Stable debounced update — optimistic: parent state is updated immediately,
+  // API call is debounced and reverts on failure.
+  const updateDomainGrouping = useCallback((domain: string, grouped: boolean) => {
+    onDomainPreferenceChange(domain, grouped)
+    if (pendingGroupingRef.current) clearTimeout(pendingGroupingRef.current)
+    pendingGroupingRef.current = setTimeout(async () => {
+      setLoadingPreferences(true)
+      try {
+        const response = await fetch('/api/bookmarks/domain-grouping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain, grouped }),
+        })
+        if (!response.ok) {
+          onDomainPreferenceChange(domain, !grouped) // revert
+        }
+      } catch (error) {
+        console.error('Failed to update domain grouping:', error)
+        onDomainPreferenceChange(domain, !grouped) // revert
+      } finally {
+        setLoadingPreferences(false)
       }
-    } catch (error) {
-      console.error('Failed to update domain grouping:', error)
-    } finally {
-      setLoadingPreferences(false)
-    }
-  }, 300)
+    }, 300)
+  }, [onDomainPreferenceChange])
 
   const toggleGroupExpansion = (domain: string) => {
     setExpandedGroups(prev => {
@@ -639,7 +630,7 @@ function BookmarkCard({
         due ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
       }`}
     >
-      <div className="flex items-start gap-3">
+      <div className="grid grid-cols-[auto_1fr] items-start gap-3">
         {/* Icon or favicon */}
         {bookmark.icon ? (
           bookmark.icon.startsWith('http') ? (
@@ -679,9 +670,11 @@ function BookmarkCard({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackAccess(bookmark.id)}
-            className="flex justify-between truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
+            className="grid grid-cols-[1fr_auto] gap-2 justify-between truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white dark:hover:text-brand-600"
           >
-            {bookmark.title}
+            <span className="truncate" title={bookmark.title}>
+              {bookmark.title}
+            </span>
             <ExternalLink className="w-4 h-4" />
           </a>
           <p className="mt-0.5 truncate text-xs text-gray-400">{domain}</p>

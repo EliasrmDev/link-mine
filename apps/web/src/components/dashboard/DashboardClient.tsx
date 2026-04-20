@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, useOptimistic, useTransition, useDeferredValue } from 'react'
 import type { Bookmark, Folder, BookmarkFilters } from '@linkmine/shared'
+import { Pagination } from './Pagination'
 import { Sidebar } from './Sidebar'
 import { BookmarkGrid } from './BookmarkGrid'
 import { BookmarkForm } from './BookmarkForm'
@@ -102,6 +103,12 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const [loading, setLoading] = useState(false)
   const [activeView, setActiveView] = useState<'bookmarks' | 'tags-icons'>('bookmarks')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('linkmine_sidebar_collapsed') === 'true'
+  })
+  const [pageSize, setPageSize] = useState(Infinity)
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Optimistic UI for instant bookmark deletion
   const [optimisticBookmarks, removeOptimisticBookmark] = useOptimistic(
@@ -144,21 +151,31 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     setFilters(loadFilters())
   }, [])
 
-  // Collect all unique tags from current bookmarks for FilterBar suggestions
-  const allTags = useMemo(() => {
-    const set = new Set<string>()
-    bookmarks.forEach((b) => b.tags.forEach((t) => set.add(t.trim().toLowerCase())))
-    return Array.from(set).sort()
+  // Collect all unique tags with usage counts (for FilterBar)
+  const allTagsWithCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    bookmarks.forEach((b) => b.tags.forEach((t) => {
+      const tag = t.trim().toLowerCase()
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    }))
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
   }, [bookmarks])
 
+  // Plain string list (for TagsIconsManager suggestions)
+  const allTags = useMemo(() => allTagsWithCounts.map((t) => t.name), [allTagsWithCounts])
+
   const iconsInUse = useMemo(() => {
-    const set = new Set<string>()
+    const counts = new Map<string, number>()
     bookmarks.forEach((b) => {
       if (b.icon && !isAutomaticFavicon(b.icon, b.url)) {
-        set.add(b.icon)
+        counts.set(b.icon, (counts.get(b.icon) ?? 0) + 1)
       }
     })
-    return Array.from(set)
+    return Array.from(counts.entries())
+      .map(([icon, count]) => ({ icon, count }))
+      .sort((a, b) => b.count - a.count)
   }, [bookmarks])
 
   // Derive unsorted count from all bookmarks (no separate API call needed)
@@ -231,6 +248,25 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
 
     return result
   }, [optimisticBookmarks, selectedFolderId, deferredQuery, filters, folders])
+
+  // Pagination
+  const paginatedBookmarks = useMemo(
+    () => !isFinite(pageSize)
+      ? filteredBookmarks
+      : filteredBookmarks.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredBookmarks, currentPage, pageSize],
+  )
+
+  // Reset to page 1 when filters / search / folder / pageSize change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [deferredQuery, filters, selectedFolderId, pageSize])
+
+  // Guard against current page going beyond total pages after bookmark deletions
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredBookmarks.length / pageSize))
+    if (currentPage > maxPage) setCurrentPage(maxPage)
+  }, [filteredBookmarks.length, currentPage, pageSize])
 
   // Refresh all bookmarks from server (used after mutations and SSE events)
   const fetchBookmarks = useCallback(async () => {
@@ -369,8 +405,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
 
   const handleBookmarkSaved = async () => {
     setBookmarkForm({ open: false })
-    await fetchBookmarks()
-    await fetchFolders()
+    await Promise.all([fetchBookmarks(), fetchFolders()])
   }
 
   const handleFolderSaved = async (savedFolder?: Folder) => {
@@ -569,9 +604,14 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
       )}
 
       {/* Sidebar */}
-      <div className={`${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } fixed inset-y-0 left-0 z-30 w-full lg:w-64 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 h-full`}>
+      <aside
+        aria-label="Navigation sidebar"
+        className={`${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } fixed inset-y-0 left-0 z-30 w-full transform transition-all duration-300 ease-in-out lg:relative lg:translate-x-0 h-full ${
+          sidebarCollapsed ? 'lg:w-0 lg:overflow-hidden' : 'lg:w-64'
+        }`}
+      >
         <div className="relative h-full">
           {/* Close button for mobile */}
           <button
@@ -597,7 +637,27 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
             onDeleteFolder={handleDeleteFolder}
           />
         </div>
-      </div>
+      </aside>
+
+      {/* Desktop sidebar collapse toggle — strip between sidebar and main content */}
+      <button
+        onClick={() => {
+          const next = !sidebarCollapsed
+          setSidebarCollapsed(next)
+          localStorage.setItem('linkmine_sidebar_collapsed', String(next))
+        }}
+        className="hidden lg:flex shrink-0 items-center justify-center w-4 self-stretch bg-gray-50 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          {sidebarCollapsed ? (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          )}
+        </svg>
+      </button>
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden lg:ml-0">
@@ -619,9 +679,19 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
         </div>
 
         {(activeView === 'bookmarks') && (
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredBookmarks.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
+
+        {(activeView === 'bookmarks') && (
           <FilterBar
             filters={filters}
-            allTags={allTags}
+            allTagsWithCounts={allTagsWithCounts}
             iconsInUse={iconsInUse}
             onChange={handleFiltersChange}
             onReset={handleFiltersReset}
@@ -651,7 +721,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
               )}
 
               <BookmarkGrid
-                bookmarks={filteredBookmarks}
+                bookmarks={paginatedBookmarks}
                 total={filteredBookmarks.length}
                 loading={loading || isPending}
                 folders={folders}
@@ -665,7 +735,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
           ) : (
             <TagsIconsManager
               allTags={allTags}
-              iconsInUse={iconsInUse}
+              iconsInUse={iconsInUse.map((i) => i.icon)}
               initialTags={initialTagsWithCounts}
               initialIcons={initialIconsWithCounts}
               onTagRenamed={handleTagRenamed}

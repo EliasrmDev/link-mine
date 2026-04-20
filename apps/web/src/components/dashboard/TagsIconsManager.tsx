@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Modal } from '../ui/Modal'
 
 interface Tag {
@@ -48,6 +48,29 @@ export function TagsIconsManager({
   const [creatingIcon, setCreatingIcon] = useState<string>('')
   const [showCreateModal, setShowCreateModal] = useState<{ type: 'tag' | 'icon' } | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Sort & view states
+  const [tagsSortBy, setTagsSortBy] = useState<'name' | 'count'>('count')
+  const [tagsSortDir, setTagsSortDir] = useState<'asc' | 'desc'>('desc')
+  const [tagsView, setTagsView] = useState<'list' | 'grid'>('list')
+  const [iconsSortBy, setIconsSortBy] = useState<'icon' | 'count'>('count')
+  const [iconsSortDir, setIconsSortDir] = useState<'asc' | 'desc'>('desc')
+  const [iconsView, setIconsView] = useState<'list' | 'grid'>('list')
+  const sortedTags = useMemo(() => {
+    return [...tags].sort((a, b) => {
+      const dir = tagsSortDir === 'asc' ? 1 : -1
+      if (tagsSortBy === 'name') return a.name.localeCompare(b.name) * dir
+      return (a.count - b.count) * dir
+    })
+  }, [tags, tagsSortBy, tagsSortDir])
+
+  const sortedIcons = useMemo(() => {
+    return [...icons].sort((a, b) => {
+      const dir = iconsSortDir === 'asc' ? 1 : -1
+      if (iconsSortBy === 'icon') return a.icon.localeCompare(b.icon) * dir
+      return (a.count - b.count) * dir
+    })
+  }, [icons, iconsSortBy, iconsSortDir])
 
   // Update state when props change
   useEffect(() => {
@@ -209,16 +232,68 @@ export function TagsIconsManager({
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'tags' ? (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Manage all your bookmark tags. Create presets for quick access when adding bookmarks.
+            {/* Tags toolbar: sort + view + add */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {/* Sort by */}
+              <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+                <button
+                  onClick={() => setTagsSortBy('name')}
+                  className={`px-2.5 py-1.5 transition-colors ${tagsSortBy === 'name' ? 'bg-brand-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                >
+                  Name
+                </button>
+                <button
+                  onClick={() => setTagsSortBy('count')}
+                  className={`px-2.5 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${tagsSortBy === 'count' ? 'bg-brand-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                >
+                  Usage
+                </button>
               </div>
+              {/* Sort direction */}
+              <button
+                onClick={() => setTagsSortDir((d) => d === 'asc' ? 'desc' : 'asc')}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title={tagsSortDir === 'asc' ? 'Ascending' : 'Descending'}
+                aria-label={`Sort ${tagsSortDir === 'asc' ? 'ascending' : 'descending'}, click to toggle`}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  {tagsSortDir === 'asc' ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                  )}
+                </svg>
+              </button>
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+                <button
+                  onClick={() => setTagsView('list')}
+                  className={`p-1.5 transition-colors ${tagsView === 'list' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  aria-label="List view"
+                  aria-pressed={tagsView === 'list'}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setTagsView('grid')}
+                  className={`p-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${tagsView === 'grid' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  aria-label="Grid view"
+                  aria-pressed={tagsView === 'grid'}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1" />
               <button
                 onClick={() => setShowCreateModal({ type: 'tag' })}
                 className="btn-primary text-sm whitespace-nowrap"
                 disabled={loading}
               >
-                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Add Tag
@@ -230,46 +305,73 @@ export function TagsIconsManager({
                 <p className="text-gray-500 mb-4">
                   No tag presets found. Create your first tag preset to get started.
                 </p>
-                <button
-                  onClick={() => setShowCreateModal({ type: 'tag' })}
-                  className="btn-primary"
-                  disabled={loading}
-                >
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button onClick={() => setShowCreateModal({ type: 'tag' })} className="btn-primary" disabled={loading}>
+                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Create Your First Tag
                 </button>
               </div>
+            ) : tagsView === 'grid' ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {sortedTags.map((tag) => (
+                  <div
+                    key={tag.name} // flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0
+                    className="flex flex-col gap-2 p-3 border border-gray-600 dark:border-gray-400 rounded-lg hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
+                  >
+                    <span className="truncate inline-flex items-center px-2 py-0.5 text-xs font-medium border border-brand-500 text-brand-800 dark:border-brand-900/30 dark:text-brand-300">
+                      {tag.name}
+                    </span>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs text-gray-500 tabular-nums">
+                        {tag.count > 0 ? `${tag.count} bk.` : '—'}
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingTag({ old: tag.name, new: tag.name })}
+                          className="text-[10px] text-blue-600 rounded border border-blue-600 py-0.5 px-1 dark:text-blue-400 dark:border-blue-400 hover:underline"
+                          disabled={loading}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ type: 'tag', name: tag.name })}
+                          className="text-[10px] text-red-600 rounded border border-red-600 py-0.5 px-1 dark:text-red-400 dark:border-red-400 hover:underline"
+                          disabled={loading}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="grid gap-3">
-                {tags.map((tag) => (
+                {sortedTags.map((tag) => (
                   <div
                     key={tag.name}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-400 dark:border-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
                   >
                     <div className="flex items-center gap-3">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900/30 dark:text-brand-300">
                         {tag.name}
                       </span>
                       <span className="text-sm text-gray-500">
-                        {tag.count > 0
-                          ? `${tag.count} bookmark${tag.count !== 1 ? 's' : ''}`
-                          : 'Not used yet'
-                        }
+                        {tag.count > 0 ? `${tag.count} bookmark${tag.count !== 1 ? 's' : ''}` : 'Not used yet'}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2">
                       <button
                         onClick={() => setEditingTag({ old: tag.name, new: tag.name })}
-                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400"
+                        className="btn-ghost px-2 py-1 border border-blue-600 text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400"
                         disabled={loading}
                       >
                         Rename
                       </button>
                       <button
                         onClick={() => setDeleteConfirm({ type: 'tag', name: tag.name })}
-                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-red-600 dark:text-red-400"
+                        className="btn-ghost px-2 py-1 border border-red-600 text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-red-600 dark:text-red-400"
                         disabled={loading}
                       >
                         Delete
@@ -280,18 +382,70 @@ export function TagsIconsManager({
               </div>
             )}
           </div>
-        ) : (
+        ) : activeTab === 'icons' ? (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Manage all your bookmark icons. Create presets for quick access when adding bookmarks.
+            {/* Icons toolbar: sort + view + add */}
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {/* Sort by */}
+              <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+                <button
+                  onClick={() => setIconsSortBy('icon')}
+                  className={`px-2.5 py-1.5 transition-colors ${iconsSortBy === 'icon' ? 'bg-brand-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                >
+                  Name
+                </button>
+                <button
+                  onClick={() => setIconsSortBy('count')}
+                  className={`px-2.5 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${iconsSortBy === 'count' ? 'bg-brand-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                >
+                  Usage
+                </button>
               </div>
+              {/* Sort direction */}
+              <button
+                onClick={() => setIconsSortDir((d) => d === 'asc' ? 'desc' : 'asc')}
+                className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title={iconsSortDir === 'asc' ? 'Ascending' : 'Descending'}
+                aria-label={`Sort ${iconsSortDir === 'asc' ? 'ascending' : 'descending'}, click to toggle`}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  {iconsSortDir === 'asc' ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                  )}
+                </svg>
+              </button>
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+                <button
+                  onClick={() => setIconsView('list')}
+                  className={`p-1.5 transition-colors ${iconsView === 'list' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  aria-label="List view"
+                  aria-pressed={iconsView === 'list'}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setIconsView('grid')}
+                  className={`p-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${iconsView === 'grid' ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' : 'text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+                  aria-label="Grid view"
+                  aria-pressed={iconsView === 'grid'}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1" />
               <button
                 onClick={() => setShowCreateModal({ type: 'icon' })}
                 className="btn-primary text-sm whitespace-nowrap"
                 disabled={loading}
               >
-                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Add Icon
@@ -303,23 +457,54 @@ export function TagsIconsManager({
                 <p className="text-gray-500 mb-4">
                   No icon presets found. Create your first icon preset to get started.
                 </p>
-                <button
-                  onClick={() => setShowCreateModal({ type: 'icon' })}
-                  className="btn-primary"
-                  disabled={loading}
-                >
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <button onClick={() => setShowCreateModal({ type: 'icon' })} className="btn-primary" disabled={loading}>
+                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   Create Your First Icon Preset
                 </button>
               </div>
-            ) : (
-              <div className="grid gap-3">
-                {icons.map((iconData) => (
+            ) : iconsView === 'grid' ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {sortedIcons.map((iconData) => (
                   <div
                     key={iconData.icon}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
+                    className="flex flex-col items-center gap-2 p-3 border border-gray-200 dark:border-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
+                  >
+                    {iconData.icon.startsWith('http') ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={iconData.icon} alt="" width={32} height={32} className="rounded" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                    ) : (
+                      <span className="text-3xl leading-none">{iconData.icon}</span>
+                    )}
+                    <span className="text-xs text-gray-500 tabular-nums text-center">
+                      {iconData.count > 0 ? `${iconData.count} bk.` : '—'}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingIcon({ old: iconData.icon, new: iconData.icon })}
+                        className="text-[10px] py-0.5 px-1 border rounded border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:underline"
+                        disabled={loading}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm({ type: 'icon', name: iconData.icon })}
+                        className="text-[10px] py-0.5 px-1 border rounded border-red-600 dark:border-red-400 text-red-600 dark:text-red-400 hover:underline"
+                        disabled={loading}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {sortedIcons.map((iconData) => (
+                  <div
+                    key={iconData.icon}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border border-gray-200 dark:border-gray-400 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 gap-3 sm:gap-0"
                   >
                     <div className="flex items-center gap-3">
                       {iconData.icon.startsWith('http') ? (
@@ -331,7 +516,6 @@ export function TagsIconsManager({
                           height={32}
                           className="rounded"
                           onError={(e) => {
-                            // Fallback to text if image fails to load
                             e.currentTarget.style.display = 'none'
                             e.currentTarget.nextElementSibling?.classList.remove('hidden')
                           }}
@@ -342,24 +526,21 @@ export function TagsIconsManager({
                       <span className="text-2xl hidden">🔖</span>
                       <div className="text-sm">
                         <div className="text-gray-500">
-                          {iconData.count > 0
-                            ? `${iconData.count} bookmark${iconData.count !== 1 ? 's' : ''}`
-                            : 'Not used yet'
-                          }
+                          {iconData.count > 0 ? `${iconData.count} bookmark${iconData.count !== 1 ? 's' : ''}` : 'Not used yet'}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2">
                       <button
                         onClick={() => setEditingIcon({ old: iconData.icon, new: iconData.icon })}
-                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400"
+                        className="btn-ghost px-2 py-1 border border-blue-600 text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-blue-600 dark:text-blue-400"
                         disabled={loading}
                       >
                         Update
                       </button>
                       <button
                         onClick={() => setDeleteConfirm({ type: 'icon', name: iconData.icon })}
-                        className="btn-ghost px-2 py-1 text-xs md:text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-red-600 dark:text-red-400"
+                        className="btn-ghost px-2 py-1 border border-red-600 text-xs md:bg-transparent md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-red-600 dark:text-red-400"
                         disabled={loading}
                       >
                         Delete
@@ -370,7 +551,7 @@ export function TagsIconsManager({
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Edit Tag Modal */}
