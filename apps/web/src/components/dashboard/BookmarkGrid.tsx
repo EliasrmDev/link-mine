@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, Group, Palette, SquarePen, Trash2, Ungroup } from 'lucide-react'
 import type { Bookmark, Folder, DomainGroupedBookmark, TreeNodeData } from '@linkmine/shared'
 import TreeView from '@/components/dashboard/TreeView'
@@ -265,12 +265,34 @@ interface Props {
   onEdit: (bookmark: Bookmark) => void
   onDelete: (id: string) => void
   showOldLinks?: boolean
+  /** Initial value from DB; takes precedence over localStorage */
+  initialBordersEnabled?: boolean
 }
 
-export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onDomainPreferenceChange, onEdit, onDelete, showOldLinks }: Props) {
+export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onDomainPreferenceChange, onEdit, onDelete, showOldLinks, initialBordersEnabled }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [loadingPreferences, setLoadingPreferences] = useState(false)
   const pendingGroupingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Global border toggle — DB value (via prop) takes precedence over localStorage
+  const [globalBordersEnabled, setGlobalBordersEnabled] = useState<boolean>(() => {
+    if (initialBordersEnabled !== undefined) return initialBordersEnabled
+    try {
+      const v = localStorage.getItem('linkmine_borders_global')
+      return v === null ? true : v !== 'false'
+    } catch { return true }
+  })
+
+  // Sync global border toggle when changed from Settings (cross-tab)
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === 'linkmine_borders_global') {
+        setGlobalBordersEnabled(e.newValue === null ? true : e.newValue !== 'false')
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   // Per-domain colored-border toggle — persisted to localStorage
   const [hiddenBorderDomains, setHiddenBorderDomains] = useState<Set<string>>(() => {
@@ -392,8 +414,8 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                   onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
                   loadingPreferences={loadingPreferences}
                   canBeGrouped={false}
-                  colorBorderEnabled={!hiddenBorderDomains.has(bookmark.domain)}
-                  onToggleBorderColor={() => toggleBorderColor(bookmark.domain)}
+                  colorBorderEnabled={globalBordersEnabled && !hiddenBorderDomains.has(bookmark.domain)}
+                  onToggleBorderColor={globalBordersEnabled ? () => toggleBorderColor(bookmark.domain) : undefined}
                 />
               ))}
             </ul>
@@ -457,8 +479,8 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                     onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
                     loadingPreferences={loadingPreferences}
                     canBeGrouped={false}
-                    colorBorderEnabled={!hiddenBorderDomains.has(bookmark.domain)}
-                    onToggleBorderColor={() => toggleBorderColor(bookmark.domain)}
+                    colorBorderEnabled={globalBordersEnabled && !hiddenBorderDomains.has(bookmark.domain)}
+                    onToggleBorderColor={globalBordersEnabled ? () => toggleBorderColor(bookmark.domain) : undefined}
                   />
                 ))}
               </ul>
@@ -621,7 +643,7 @@ function BookmarkCard({
 
           {/* Footer: group actions */}
           <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -635,22 +657,25 @@ function BookmarkCard({
                 Ungroup
               </button>
 
+
+              {onToggleBorderColor && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onToggleBorderColor?.()
+                  onToggleBorderColor()
                 }}
                 className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border transition-colors ${
-                  colorBorderEnabled
-                    ? 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
-                    : 'border-brand-200 dark:border-brand-800 text-brand-500 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/40'
-                }`}
-                title={colorBorderEnabled ? 'Hide color border' : 'Show color border'}
-                aria-label={colorBorderEnabled ? 'Hide color border for this group' : 'Show color border for this group'}
-                aria-pressed={colorBorderEnabled}
+                colorBorderEnabled
+                  ? 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/40'
+              }`}
+              title={colorBorderEnabled ? 'Hide color border' : 'Show color border'}
+              aria-label={colorBorderEnabled ? 'Hide color border for this group' : 'Show color border for this group'}
+              aria-pressed={colorBorderEnabled}
               >
                 <Palette className="h-3.5 w-3.5" style={colorBorderEnabled ? { color: `hsl(${hue} 60% 50%)` } : undefined} />
               </button>
+              )}
             </div>
 
             <button

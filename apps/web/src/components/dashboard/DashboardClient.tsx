@@ -123,10 +123,12 @@ interface Props {
   initialTagsWithCounts: Array<{ name: string; count: number }>
   initialIconsWithCounts: Array<{ icon: string; count: number }>
   initialDomainPreferences: Record<string, boolean>
+  /** Dashboard preferences fetched from DB (overrides localStorage) */
+  initialDashboardPrefs: Record<string, string>
   user: { name: string; image: string | null }
 }
 
-export function DashboardClient({ initialBookmarks, initialFolders, initialTagsWithCounts, initialIconsWithCounts, initialDomainPreferences, user }: Props) {
+export function DashboardClient({ initialBookmarks, initialFolders, initialTagsWithCounts, initialIconsWithCounts, initialDomainPreferences, initialDashboardPrefs, user }: Props) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(initialBookmarks)
   const [folders, setFolders] = useState<Folder[]>(initialFolders)
   const [domainPreferences, setDomainPreferences] = useState<Record<string, boolean>>(initialDomainPreferences)
@@ -143,6 +145,9 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const [sidebarOpen, setSidebarOpen] = useState(false)
   type SidebarMode = 'toggle' | 'hover'
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => {
+    // DB value takes precedence over localStorage
+    const fromDB = initialDashboardPrefs['dashboard:sidebar_mode']
+    if (fromDB === 'hover' || fromDB === 'toggle') return fromDB
     if (typeof window === 'undefined') return 'toggle'
     const stored = localStorage.getItem('linkmine_sidebar_mode')
     if (stored === 'hover') return 'hover'
@@ -201,10 +206,20 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
 
   const sseRefreshTimeout = useRef<ReturnType<typeof setTimeout>>(null)
 
-  // Load persisted filters on mount
+  // Load persisted filters on mount (DB sort pref takes precedence over localStorage)
   useEffect(() => {
-    setFilters(loadFilters())
-  }, [])
+    const loaded = loadFilters()
+    const dbSort = initialDashboardPrefs['dashboard:sort']
+    if (dbSort) {
+      const [sortBy, sortDir] = dbSort.split('|')
+      const allowedSortBy = ['createdAt', 'reminderDate', 'lastAccessed'] as const
+      type SortBy = typeof allowedSortBy[number]
+      const validatedSortBy = allowedSortBy.includes(sortBy as SortBy) ? (sortBy as SortBy) : loaded.sortBy
+      setFilters({ ...loaded, sortBy: validatedSortBy, sortDir: (sortDir as 'asc' | 'desc') ?? loaded.sortDir })
+    } else {
+      setFilters(loaded)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Collect all unique tags with usage counts (global — for TagsIconsManager suggestions)
   const allTagsWithCounts = useMemo(() => {
@@ -791,6 +806,11 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
                 onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
                 onDelete={handleDeleteBookmark}
                 showOldLinks={showOldLinks}
+                initialBordersEnabled={
+                  initialDashboardPrefs['dashboard:borders_global'] !== undefined
+                    ? initialDashboardPrefs['dashboard:borders_global'] !== 'false'
+                    : undefined
+                }
               />
             </div>
           ) : (

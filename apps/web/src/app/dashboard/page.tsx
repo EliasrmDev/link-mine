@@ -5,13 +5,15 @@ import { DashboardClient } from '@/components/dashboard/DashboardClient'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
+const DASHBOARD_PREF_KEYS = ['dashboard:borders_global', 'dashboard:sidebar_mode', 'dashboard:sort']
+
 export default async function DashboardPage() {
   const session = await auth()
   const userId = session!.user!.id as string
 
   // Fetch initial data server-side — no loading spinner on first render
-  const { foldersFlat, bookmarks, domainPreferences, presets, tagCounts } = await withRLS(userId, async (tx) => {
-    const [foldersFlat, bookmarks, domainPreferences] = await Promise.all([
+  const { foldersFlat, bookmarks, allPreferences, presets, tagCounts } = await withRLS(userId, async (tx) => {
+    const [foldersFlat, bookmarks, allPreferences] = await Promise.all([
       tx.folder.findMany({
         where: { userId },
         include: { _count: { select: { bookmarks: true } } },
@@ -23,10 +25,8 @@ export default async function DashboardPage() {
         orderBy: { createdAt: 'desc' },
       }),
       tx.userPreference.findMany({
-        where: {
-          userId,
-          key: { startsWith: 'domain_grouping:' },
-        },
+        where: { userId },
+        select: { key: true, value: true },
       }),
     ])
 
@@ -44,8 +44,15 @@ export default async function DashboardPage() {
       `.then(rows => rows.map(r => ({ name: r.name, count: Number(r.count) }))),
     ])
 
-    return { foldersFlat, bookmarks, domainPreferences, presets, tagCounts }
+    return { foldersFlat, bookmarks, allPreferences, presets, tagCounts }
   })
+
+  // Split preferences into domain-grouping and dashboard config
+  const domainPreferencesRaw = allPreferences.filter(p => p.key.startsWith('domain_grouping:'))
+  const dashboardPrefsRaw    = allPreferences.filter(p => DASHBOARD_PREF_KEYS.includes(p.key))
+
+  const initialDashboardPrefs: Record<string, string> = {}
+  for (const p of dashboardPrefsRaw) initialDashboardPrefs[p.key] = p.value
 
   // Build tree
   const folders = foldersFlat
@@ -78,14 +85,12 @@ export default async function DashboardPage() {
   const tagPresets = presets.filter(p => p.type === 'TAG').map(p => p.value);
   const iconPresets = presets.filter(p => p.type === 'ICON').map(p => p.value);
 
-  // Create tag count map and combine with presets
   const tagCountMap = new Map(tagCounts.map(tc => [tc.name, tc.count]));
   const initialTags = tagPresets.map(tag => ({
     name: tag,
     count: tagCountMap.get(tag) || 0
   })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 
-  // Create icon counts from current bookmark data
   const iconCountMap = new Map<string, number>();
   serializedBookmarks.forEach(bookmark => {
     if (bookmark.icon) {
@@ -99,9 +104,9 @@ export default async function DashboardPage() {
   })).sort((a, b) => b.count - a.count || a.icon.localeCompare(b.icon));
 
   // Process domain preferences
-  const processedDomainPreferences = domainPreferences.reduce((acc: Record<string, boolean>, pref) => {
+  const processedDomainPreferences = domainPreferencesRaw.reduce((acc: Record<string, boolean>, pref) => {
     const domain = pref.key.replace('domain_grouping:', '')
-    acc[domain] = pref.value !== 'false' // Default to true (grouped)
+    acc[domain] = pref.value !== 'false'
     return acc
   }, {})
 
@@ -112,7 +117,9 @@ export default async function DashboardPage() {
       initialTagsWithCounts={initialTags}
       initialIconsWithCounts={initialIcons}
       initialDomainPreferences={processedDomainPreferences}
+      initialDashboardPrefs={initialDashboardPrefs}
       user={{ name: session!.user?.name ?? '', image: session!.user?.image ?? null }}
     />
   )
 }
+

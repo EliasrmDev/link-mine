@@ -14,6 +14,11 @@ import {
   ExternalLink,
   CheckCircle2,
   Lock,
+  LayoutDashboard,
+  Palette,
+  PanelLeft,
+  ArrowUpDown,
+  RotateCcw,
 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 
@@ -27,6 +32,8 @@ interface UserInfo {
 
 interface Props {
   user: UserInfo
+  /** Dashboard preferences loaded from DB on the server */
+  initialPrefs: Record<string, string>
 }
 
 function providerLabel(provider: string | null): string {
@@ -198,10 +205,116 @@ function DeleteAccountModal({ email, onClose }: DeleteModalProps) {
 
 // ─── Main Settings Client ─────────────────────────────────────────────────────
 
-export function SettingsClient({ user }: Props) {
+// ─── Toggle Switch ────────────────────────────────────────────────────────────
+
+function ToggleSwitch({ checked, onChange, id }: { checked: boolean; onChange: (v: boolean) => void; id: string }) {
+  return (
+    <button
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 ${
+        checked ? 'bg-brand-600' : 'bg-gray-200 dark:bg-gray-700'
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  )
+}
+
+// ─── Main Settings Client ─────────────────────────────────────────────────────
+
+export function SettingsClient({ user, initialPrefs }: Props) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const initials = getInitials(user.name, user.email)
   const provider = providerLabel(user.provider)
+
+  // ── Dashboard preferences — initialized from DB, saved to DB + localStorage ─
+  const [bordersEnabled, setBordersEnabled] = useState<boolean>(
+    initialPrefs['dashboard:borders_global'] !== undefined
+      ? initialPrefs['dashboard:borders_global'] !== 'false'
+      : true,
+  )
+  const [hiddenBorderCount, setHiddenBorderCount] = useState(0)
+  const [sidebarModePref, setSidebarModePref] = useState<'toggle' | 'hover'>(
+    initialPrefs['dashboard:sidebar_mode'] === 'hover' ? 'hover' : 'toggle',
+  )
+  const [defaultSort, setDefaultSort] = useState(
+    initialPrefs['dashboard:sort'] ?? 'createdAt|desc',
+  )
+  const [saving, setSaving] = useState(false)
+  const [savedKey, setSavedKey] = useState<string | null>(null)
+
+  // Read localStorage-only state on mount (hidden border overrides)
+  useEffect(() => {
+    try {
+      const hbd = localStorage.getItem('linkmine_hidden_border_domains')
+      if (hbd) {
+        const arr = JSON.parse(hbd)
+        setHiddenBorderCount(Array.isArray(arr) ? arr.length : 0)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Keep localStorage in sync so the dashboard reads the right values immediately
+  useEffect(() => {
+    localStorage.setItem('linkmine_borders_global', bordersEnabled ? 'true' : 'false')
+  }, [bordersEnabled])
+
+  useEffect(() => {
+    localStorage.setItem('linkmine_sidebar_mode', sidebarModePref)
+  }, [sidebarModePref])
+
+  useEffect(() => {
+    const [sortBy, sortDir] = defaultSort.split('|')
+    try {
+      const raw = localStorage.getItem('linkmine_filters')
+      const current = raw ? JSON.parse(raw) : {}
+      localStorage.setItem('linkmine_filters', JSON.stringify({ ...current, sortBy, sortDir }))
+    } catch { /* ignore */ }
+  }, [defaultSort])
+
+  async function savePref(key: string, value: string) {
+    setSaving(true)
+    try {
+      await fetch('/api/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      })
+      setSavedKey(key)
+      setTimeout(() => setSavedKey(null), 2000)
+    } catch { /* silently ignore */ } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleBordersToggle(val: boolean) {
+    setBordersEnabled(val)
+    void savePref('dashboard:borders_global', val ? 'true' : 'false')
+  }
+
+  function handleResetBorderOverrides() {
+    localStorage.removeItem('linkmine_hidden_border_domains')
+    setHiddenBorderCount(0)
+  }
+
+  function handleSidebarModeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const mode = e.target.value as 'toggle' | 'hover'
+    setSidebarModePref(mode)
+    void savePref('dashboard:sidebar_mode', mode)
+  }
+
+  function handleSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value
+    setDefaultSort(val)
+    void savePref('dashboard:sort', val)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -352,6 +465,125 @@ export function SettingsClient({ user }: Props) {
                 N/A
               </span>
             </div>
+          </div>
+        </section>
+
+        {/* ── Dashboard ────────────────────────────────────────── */}
+        <section aria-labelledby="dashboard-heading">
+          <div className="mb-3 flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4 text-gray-400" aria-hidden="true" />
+            <h2 id="dashboard-heading" className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              Dashboard
+            </h2>
+            {savedKey && (
+              <span className="ml-auto flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Saved
+              </span>
+            )}
+            {saving && !savedKey && (
+              <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">Saving…</span>
+            )}
+          </div>
+
+          <div className="card divide-y divide-gray-100 p-0 dark:divide-gray-800">
+
+            {/* Colored group borders — global toggle */}
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30">
+                  <Palette className="h-4 w-4 text-blue-500" aria-hidden="true" />
+                </div>
+                <div>
+                  <label htmlFor="toggle-borders" className="text-sm font-medium text-gray-900 dark:text-white">
+                    Colored group borders
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Show colored borders on domain-grouped bookmark cards
+                  </p>
+                </div>
+              </div>
+              <ToggleSwitch id="toggle-borders" checked={bordersEnabled} onChange={handleBordersToggle} />
+            </div>
+
+            {/* Reset per-group border overrides */}
+            <div className="flex items-center justify-between px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <RotateCcw className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Per-group overrides</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {hiddenBorderCount > 0
+                      ? `${hiddenBorderCount} group${hiddenBorderCount !== 1 ? 's' : ''} with border hidden`
+                      : 'No per-group overrides active'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleResetBorderOverrides}
+                disabled={hiddenBorderCount === 0}
+                className="btn btn-secondary text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Sidebar behavior */}
+            <div className="flex items-center justify-between gap-4 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <PanelLeft className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                </div>
+                <div>
+                  <label htmlFor="sidebar-mode" className="text-sm font-medium text-gray-900 dark:text-white">
+                    Sidebar behavior
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    How the sidebar opens on the dashboard
+                  </p>
+                </div>
+              </div>
+              <select
+                id="sidebar-mode"
+                value={sidebarModePref}
+                onChange={handleSidebarModeChange}
+                className="input w-36 shrink-0 py-1.5 text-sm"
+              >
+                <option value="toggle">Click to expand</option>
+                <option value="hover">Hover to expand</option>
+              </select>
+            </div>
+
+            {/* Default sort order */}
+            <div className="flex items-center justify-between gap-4 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <ArrowUpDown className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                </div>
+                <div>
+                  <label htmlFor="default-sort" className="text-sm font-medium text-gray-900 dark:text-white">
+                    Default sort order
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    How bookmarks are sorted when you open the dashboard
+                  </p>
+                </div>
+              </div>
+              <select
+                id="default-sort"
+                value={defaultSort}
+                onChange={handleSortChange}
+                className="input w-36 shrink-0 py-1.5 text-sm"
+              >
+                <option value="createdAt|desc">Newest first</option>
+                <option value="createdAt|asc">Oldest first</option>
+                <option value="title|asc">Title A → Z</option>
+                <option value="title|desc">Title Z → A</option>
+              </select>
+            </div>
+
           </div>
         </section>
 
