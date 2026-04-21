@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import { Check } from 'lucide-react'
 import { auth } from '@/lib/auth'
 import { OAUTH_CLIENTS, validateScopes } from '@/lib/oauth'
 import { ConsentForm } from './ConsentForm'
@@ -101,9 +102,7 @@ export default async function OAuthConsentPage({
           <ul className="mt-3 space-y-2">
             {scopeInfo.map((s) => (
               <li key={s.label} className="flex items-start gap-2">
-                <svg className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-500" />
                 <div>
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{s.label}</span>
                   {s.description && (

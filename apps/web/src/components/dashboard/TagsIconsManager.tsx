@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { ArrowDown, ArrowUp, LayoutGrid, List, Plus } from 'lucide-react'
 import { Modal } from '../ui/Modal'
 
 interface Tag {
@@ -203,8 +204,8 @@ export function TagsIconsManager({
   return (
     <div className="h-full flex flex-col">
       {/* Header with tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-        <div className="flex space-x-8">
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <div className="flex space-x-8 justify-center sm:justify-start px-4 sm:px-6">
           <button
             onClick={() => setActiveTab('tags')}
             className={`py-2 px-1 font-medium text-sm border-b-2 transition-colors ${
@@ -256,13 +257,7 @@ export function TagsIconsManager({
                 title={tagsSortDir === 'asc' ? 'Ascending' : 'Descending'}
                 aria-label={`Sort ${tagsSortDir === 'asc' ? 'ascending' : 'descending'}, click to toggle`}
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  {tagsSortDir === 'asc' ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                  )}
-                </svg>
+                {tagsSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />}
               </button>
               {/* View toggle */}
               <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
@@ -272,9 +267,7 @@ export function TagsIconsManager({
                   aria-label="List view"
                   aria-pressed={tagsView === 'list'}
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                  <List className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => setTagsView('grid')}
@@ -282,9 +275,7 @@ export function TagsIconsManager({
                   aria-label="Grid view"
                   aria-pressed={tagsView === 'grid'}
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                  </svg>
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex-1" />
@@ -293,9 +284,7 @@ export function TagsIconsManager({
                 className="btn-primary text-sm whitespace-nowrap"
                 disabled={loading}
               >
-                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
                 Add Tag
               </button>
             </div>
@@ -306,9 +295,7 @@ export function TagsIconsManager({
                   No tag presets found. Create your first tag preset to get started.
                 </p>
                 <button onClick={() => setShowCreateModal({ type: 'tag' })} className="btn-primary" disabled={loading}>
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
                   Create Your First Tag
                 </button>
               </div>
@@ -408,13 +395,7 @@ export function TagsIconsManager({
                 title={iconsSortDir === 'asc' ? 'Ascending' : 'Descending'}
                 aria-label={`Sort ${iconsSortDir === 'asc' ? 'ascending' : 'descending'}, click to toggle`}
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  {iconsSortDir === 'asc' ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
-                  )}
-                </svg>
+                {iconsSortDir === 'asc' ? <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />}
               </button>
               {/* View toggle */}
               <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
@@ -424,9 +405,7 @@ export function TagsIconsManager({
                   aria-label="List view"
                   aria-pressed={iconsView === 'list'}
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                  <List className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => setIconsView('grid')}
@@ -434,9 +413,7 @@ export function TagsIconsManager({
                   aria-label="Grid view"
                   aria-pressed={iconsView === 'grid'}
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                  </svg>
+                  <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
               </div>
               <div className="flex-1" />
@@ -445,9 +422,7 @@ export function TagsIconsManager({
                 className="btn-primary text-sm whitespace-nowrap"
                 disabled={loading}
               >
-                <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
                 Add Icon
               </button>
             </div>
@@ -458,9 +433,7 @@ export function TagsIconsManager({
                   No icon presets found. Create your first icon preset to get started.
                 </p>
                 <button onClick={() => setShowCreateModal({ type: 'icon' })} className="btn-primary" disabled={loading}>
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
                   Create Your First Icon Preset
                 </button>
               </div>

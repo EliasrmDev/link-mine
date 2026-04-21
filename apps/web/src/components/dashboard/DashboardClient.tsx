@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect, useMemo, useOptimistic, useTransition, useDeferredValue } from 'react'
+import { X } from 'lucide-react'
 import type { Bookmark, Folder, BookmarkFilters } from '@linkmine/shared'
-import { Pagination } from './Pagination'
 import { Sidebar } from './Sidebar'
 import { BookmarkGrid } from './BookmarkGrid'
 import { BookmarkForm } from './BookmarkForm'
@@ -103,10 +103,27 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const [loading, setLoading] = useState(false)
   const [activeView, setActiveView] = useState<'bookmarks' | 'tags-icons'>('bookmarks')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('linkmine_sidebar_collapsed') === 'true'
+  type SidebarMode = 'toggle' | 'hover'
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() => {
+    if (typeof window === 'undefined') return 'toggle'
+    const stored = localStorage.getItem('linkmine_sidebar_mode')
+    if (stored === 'hover') return 'hover'
+    return 'toggle'
   })
+  const [sidebarToggleExpanded, setSidebarToggleExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return localStorage.getItem('linkmine_sidebar_mode') !== 'collapsed'
+  })
+  const [sidebarHovered, setSidebarHovered] = useState(false)
+
+  const sidebarExpanded = sidebarMode === 'toggle' ? sidebarToggleExpanded : sidebarHovered
+
+  const handleSidebarModeChange = (mode: SidebarMode) => {
+    setSidebarMode(mode)
+    setSidebarToggleExpanded(true)
+    localStorage.setItem('linkmine_sidebar_mode', mode)
+  }
+  const handleToggleSidebar = () => setSidebarToggleExpanded((e) => !e)
   const [pageSize, setPageSize] = useState(Infinity)
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -609,8 +626,10 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
         className={`${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } fixed inset-y-0 left-0 z-30 w-full transform transition-all duration-300 ease-in-out lg:relative lg:translate-x-0 h-full ${
-          sidebarCollapsed ? 'lg:w-0 lg:overflow-hidden' : 'lg:w-64'
+          sidebarExpanded ? 'lg:w-64' : 'lg:w-14'
         }`}
+        onMouseEnter={() => { if (sidebarMode === 'hover') setSidebarHovered(true) }}
+        onMouseLeave={() => { if (sidebarMode === 'hover') setSidebarHovered(false) }}
       >
         <div className="relative h-full">
           {/* Close button for mobile */}
@@ -619,74 +638,49 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
             className="absolute top-4 right-4 z-40 lg:hidden p-2 rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
             aria-label="Close sidebar"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="h-5 w-5" />
           </button>
 
-          <Sidebar
-            folders={folders}
-            unsortedCount={unsortedCount}
-            selectedFolderId={selectedFolderId}
-            onSelectFolder={(id) => {
-              navigateToFolder(id)
-              setSidebarOpen(false) // Close sidebar on mobile after selection
-            }}
-            onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
-            onEditFolder={(folder) => setFolderForm({ open: true, folder })}
-            onDeleteFolder={handleDeleteFolder}
-          />
+          <div
+            className={`h-full ${sidebarMode === 'hover' ? 'lg:absolute lg:top-0 lg:left-0 lg:z-40' : ''} ${sidebarMode === 'hover' && sidebarHovered ? 'lg:shadow-xl' : ''}`}
+          >
+            <Sidebar
+              user={user}
+              folders={folders}
+              unsortedCount={unsortedCount}
+              selectedFolderId={selectedFolderId}
+              onSelectFolder={(id) => {
+                navigateToFolder(id)
+                setSidebarOpen(false) // Close sidebar on mobile after selection
+              }}
+              onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
+              onEditFolder={(folder) => setFolderForm({ open: true, folder })}
+              onDeleteFolder={handleDeleteFolder}
+              sidebarMode={sidebarMode}
+              onSidebarModeChange={handleSidebarModeChange}
+              sidebarExpanded={sidebarExpanded}
+              onToggleSidebar={handleToggleSidebar}
+              sidebarHovered={sidebarHovered}
+            />
+          </div>
         </div>
       </aside>
-
-      {/* Desktop sidebar collapse toggle — strip between sidebar and main content */}
-      <button
-        onClick={() => {
-          const next = !sidebarCollapsed
-          setSidebarCollapsed(next)
-          localStorage.setItem('linkmine_sidebar_collapsed', String(next))
-        }}
-        className="hidden lg:flex shrink-0 items-center justify-center w-4 self-stretch bg-gray-50 dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-          {sidebarCollapsed ? (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          )}
-        </svg>
-      </button>
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden lg:ml-0">
         <TopBar
-          user={user}
           query={query}
           onSearch={handleSearch}
           onAddBookmark={() => setBookmarkForm({ open: true })}
           activeView={activeView}
+          currentPage={currentPage}
+          totalItems={filteredBookmarks.length}
+          pageSize={pageSize}
           onViewChange={setActiveView}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
         />
-
-        {/* Mobile section indicator */}
-        <div className="lg:hidden bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
-          <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-            {getCurrentSectionName()}
-          </span>
-        </div>
-
-        {(activeView === 'bookmarks') && (
-          <Pagination
-            currentPage={currentPage}
-            totalItems={filteredBookmarks.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-            onPageSizeChange={setPageSize}
-          />
-        )}
 
         {(activeView === 'bookmarks') && (
           <FilterBar
@@ -698,7 +692,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
           />
         )}
 
-        <main className="flex-1 overflow-y-auto p-6" id="main-content">
+        <main className={`flex-1 overflow-y-auto ${activeView === 'bookmarks' ? 'p-3 sm:p-6' : 'py-1'} scrollbar-stable`} id="main-content">
           {activeView === 'bookmarks' ? (
             <div className="space-y-6">
               {/* Breadcrumb navigation */}

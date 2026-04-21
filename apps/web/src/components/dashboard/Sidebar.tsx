@@ -1,12 +1,17 @@
 'use client'
 
+import { signOut } from 'next-auth/react'
+import Image from 'next/image'
 import Link from 'next/link'
-import { useState, useRef } from 'react'
-import { Sun, Moon, Download, Upload, ChevronDown } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Sun, Moon, Download, Upload, ChevronDown, Settings, LogOut, Bookmark, Inbox, Plus, ChevronRight, FolderIcon, Folders, MoreVertical, PanelLeftDashed, Circle } from 'lucide-react'
 import { useTheme } from '../ThemeProvider'
 import type { Folder } from '@linkmine/shared'
 
+type SidebarMode = 'toggle' | 'hover'
+
 interface Props {
+  user: { name: string; image: string | null }
   folders: Folder[]
   unsortedCount: number
   selectedFolderId: string | null | 'all'
@@ -14,9 +19,15 @@ interface Props {
   onAddFolder: (parentId?: string | null) => void
   onEditFolder: (folder: Folder) => void
   onDeleteFolder: (id: string) => void
+  sidebarMode: SidebarMode
+  onSidebarModeChange: (mode: SidebarMode) => void
+  sidebarExpanded?: boolean
+  onToggleSidebar?: () => void
+  sidebarHovered?: boolean
 }
 
 export function Sidebar({
+  user,
   folders,
   unsortedCount,
   selectedFolderId,
@@ -24,41 +35,119 @@ export function Sidebar({
   onAddFolder,
   onEditFolder,
   onDeleteFolder,
+  sidebarMode,
+  onSidebarModeChange,
+  sidebarExpanded,
+  onToggleSidebar,
+  sidebarHovered,
 }: Props) {
   const { toggle } = useTheme()
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [importMenuOpen, setImportMenuOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [foldersExpanded, setFoldersExpanded] = useState(true)
+  const [controlMenuOpen, setControlMenuOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setUserMenuOpen(false)
+      setExportMenuOpen(false)
+      setImportMenuOpen(false)
+      setControlMenuOpen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
   const allBookmarksCount = totalBookmarksInTree + unsortedCount
+  const collapsed = !sidebarExpanded
 
   return (
     <nav
       aria-label="Folders"
-      className="flex w-full lg:w-64 shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 h-full"
+      className={`flex w-full shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 h-full transition-width duration-300 ${collapsed ? 'lg:w-14' : 'lg:w-64'}`}
     >
       {/* Logo */}
-      <div className="px-4 lg:px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-        <Link href="/">
+      <div className={`py-4 border-b border-gray-100 dark:border-gray-800 flex items-center transition-all duration-300 ${collapsed ? 'lg:justify-center lg:px-2 px-4 justify-between' : 'px-4 lg:px-5 justify-between'}`}>
+        <Link href="/" className={`transition-opacity duration-300 truncate w-full ${collapsed ? 'lg:hidden' : ''}`}>
           <span className="text-lg font-bold text-brand-400">LinkMine</span>
         </Link>
+
+        {/* Sidebar display control */}
+        <div className="relative hidden sm:flex items-center border border-gray-200 dark:border-gray-700 rounded-lg px-1 py-1 transition-colors bg-white dark:bg-gray-800">
+          <button
+            onClick={() => {
+              if (sidebarMode === 'toggle') {
+                onToggleSidebar?.()
+              } else {
+                return // No toggle action for hover mode; sidebar expands on hover automatically
+              }
+            }}
+            aria-label={`Sidebar mode: ${sidebarMode}. Click to toggle`}
+            title={`Current: ${sidebarMode}${sidebarMode === 'toggle' ? ` (${sidebarExpanded ? 'expanded' : 'collapsed'})` : ''} — click to toggle`}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition-colors"
+          >
+            <PanelLeftDashed className="h-4 w-4" aria-hidden="true" />
+          </button>
+
+          <button
+            onClick={() => setControlMenuOpen((o) => !o)}
+            aria-label="Sidebar display options"
+            aria-haspopup="true"
+            aria-expanded={controlMenuOpen}
+            className="w-3 h-6 flex items-center justify-center border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          >
+            <ChevronRight className={`w-4 h-4 transition-transform ${controlMenuOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
+          </button>
+
+          {controlMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setControlMenuOpen(false)} aria-hidden="true" />
+              <div
+                role="group"
+                className="absolute top-full z-20 mt-1 w-44 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">Sidebar control</div>
+                <hr className="-mx-1 my-1 border-gray-200 dark:border-gray-700" />
+                {([
+                  { mode: 'toggle', label: 'Toggle' },
+                  { mode: 'hover', label: 'Expand on hover' },
+                ] as const).map(({ mode, label }) => (
+                  <button
+                    key={mode}
+                    role="menuitemradio"
+                    aria-checked={sidebarMode === mode}
+                    onClick={() => { onSidebarModeChange(mode); setControlMenuOpen(false) }}
+                    className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 outline-none"
+                  >
+                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                      {sidebarMode === mode && (
+                        <Circle className="h-2 w-2 fill-current" aria-hidden="true" />
+                      )}
+                    </span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto gap-3 px-3 py-3">
+      <div className={`flex-1 overflow-y-auto overflow-x-hidden gap-3 py-3 transition-all duration-300 ${collapsed ? 'lg:px-1 px-3' : 'px-3'}`}>
         {/* All bookmarks */}
         <SidebarItem
           label="All bookmarks"
           count={allBookmarksCount}
           selected={selectedFolderId === 'all'}
           onSelect={() => onSelectFolder('all')}
-          icon={
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-            </svg>
-          }
+          icon={<Bookmark className="h-4 w-4" aria-hidden="true" />}
+          collapsed={collapsed}
         />
 
         {/* Unsorted */}
@@ -66,42 +155,39 @@ export function Sidebar({
           label="Unsorted"
           selected={selectedFolderId === 'none'}
           onSelect={() => onSelectFolder('none')}
-          icon={
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-            </svg>
-          }
+          icon={<Inbox className="h-4 w-4" aria-hidden="true" />}
+          collapsed={collapsed}
         />
 
         {/* Folders */}
         {folders.length > 0 && (
           <div className="mt-3">
-            <div className="flex items-center justify-between px-2 py-1">
+            <div className={`flex gap-1.5 items-center justify-between px-2 py-1 transition-all duration-300 ${collapsed ? 'flex-col p-0' : ''}`}>
               <button
-                onClick={() => setFoldersExpanded((e) => !e)}
-                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                onClick={() => collapsed ? onToggleSidebar?.() : setFoldersExpanded((e) => !e)}
+                className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${collapsed ? 'flex-col' : ''}`}
                 aria-expanded={foldersExpanded}
                 aria-controls="sidebar-folders-list"
               >
                 <ChevronDown
-                  className={`h-3 w-3 transition-transform duration-200 ${foldersExpanded ? '' : '-rotate-90'}`}
+                  className={`h-3 w-3 transition-transform duration-200 ${collapsed ? 'lg:hidden' : ''} ${foldersExpanded ? '' : '-rotate-90'}`}
                 />
-                Folders
+                <Folders className="h-4 w-4" aria-hidden="true" />
+                <span className={`${collapsed ? 'lg:hidden' : ''}`}>Folders</span>
               </button>
               {foldersExpanded && (
                 <button
                   onClick={() => onAddFolder(null)}
                   aria-label="Add folder"
-                  className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                  className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
                 </button>
               )}
             </div>
 
-            <div id="sidebar-folders-list">
+            {/* Full folder tree — always on mobile; desktop only when not collapsed */}
+            <div className={collapsed ? 'lg:hidden' : ''} id="sidebar-folders-list">
               {foldersExpanded && folders.map((folder) => (
                 <FolderItem
                   key={folder.id}
@@ -120,41 +206,52 @@ export function Sidebar({
         {folders.length === 0 && (
           <button
             onClick={() => onAddFolder(null)}
-            className="mt-4 flex w-full items-center gap-2 rounded-lg border-2 border-dashed border-gray-200 p-3 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:hover:border-brand-700"
+            className={`mt-4 flex w-full items-center gap-2 rounded-lg border-2 border-dashed border-gray-200 p-3 text-sm text-gray-400 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:hover:border-brand-700 ${collapsed ? 'lg:hidden' : ''}`}
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create first folder
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span className="truncate">Create first folder</span>
           </button>
         )}
       </div>
 
       {/* Footer with theme toggle and export */}
-      <div className="border-t border-gray-100 px-3 py-3 dark:border-gray-800 space-y-1">
+      <div className={`border-t border-gray-100 py-3 dark:border-gray-800 space-y-1 ${collapsed ? 'lg:px-1 px-3' : 'px-3'}`}>
         {/* Theme toggle */}
         <button
           onClick={toggle}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          title='Toggle theme'
+          className={`flex w-full ${collapsed ? 'justify-center' : ''} items-center gap-3 px-3 rounded-lg py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800`}
         >
-          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute left-5 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="dark:hidden">Light mode</span>
-          <span className="hidden dark:block">Dark mode</span>
+          <Sun className="dark:hidden h-4 w-4 rotate-0 scale-100 transition-all dark:absolute dark:left-5 dark:-rotate-90 dark:scale-0" />
+          <Moon className="dark:block hidden h-4 w-4" />
+          <span className={`dark:hidden truncate ${collapsed ? 'lg:hidden' : ''}`}>Light mode</span>
+          <span className={`hidden dark:block truncate ${collapsed ? 'lg:!hidden' : ''}`}>Dark mode</span>
         </button>
 
         {/* Export dropdown */}
         <div className="relative">
-          <button
-            onClick={() => setExportMenuOpen(!exportMenuOpen)}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 justify-between"
-          >
-            <div className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              <span>Export bookmarks</span>
-            </div>
-            <ChevronDown className={`h-3 w-3 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`} />
-          </button>
+          {collapsed ? (
+            <button
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              aria-label="Export bookmarks"
+              aria-expanded={exportMenuOpen}
+              aria-haspopup="true"
+              className="flex w-full items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              onClick={() => setExportMenuOpen(!exportMenuOpen)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 justify-between"
+            >
+              <div className="flex items-center gap-2 w-full">
+                <Download className="h-4 w-4" />
+                <span className="truncate">Export bookmarks</span>
+              </div>
+              <ChevronDown className={`h-3 w-3 transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+          )}
 
           {exportMenuOpen && (
             <>
@@ -163,66 +260,30 @@ export function Sidebar({
                 onClick={() => setExportMenuOpen(false)}
                 aria-hidden="true"
               />
-              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                <a
-                  href="/api/bookmarks/export?format=html"
-                  download
-                  onClick={() => setExportMenuOpen(false)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+              <div className={`absolute z-20 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800 ${
+                collapsed
+                  ? 'bottom-0 left-full ml-1 w-52'
+                  : 'bottom-full left-0 right-0 mb-2'
+              }`}>
+                <a href="/api/bookmarks/export?format=html" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-blue-500">🌐</span>
-                  <div>
-                    <div className="font-medium">Para navegador</div>
-                    <div className="text-xs text-gray-500">HTML</div>
-                  </div>
+                  <div><div className="font-medium">Para navegador</div><div className="text-xs text-gray-500">HTML</div></div>
                 </a>
-                <a
-                  href="/api/bookmarks/export?format=csv"
-                  download
-                  onClick={() => setExportMenuOpen(false)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <a href="/api/bookmarks/export?format=csv" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-green-500">📊</span>
-                  <div>
-                    <div className="font-medium">Para Excel</div>
-                    <div className="text-xs text-gray-500">CSV</div>
-                  </div>
+                  <div><div className="font-medium">Para Excel</div><div className="text-xs text-gray-500">CSV</div></div>
                 </a>
-                <a
-                  href="/api/bookmarks/export?format=markdown"
-                  download
-                  onClick={() => setExportMenuOpen(false)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <a href="/api/bookmarks/export?format=markdown" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-purple-500">📝</span>
-                  <div>
-                    <div className="font-medium">Para Notion/Obsidian</div>
-                    <div className="text-xs text-gray-500">Markdown</div>
-                  </div>
+                  <div><div className="font-medium">Para Notion/Obsidian</div><div className="text-xs text-gray-500">Markdown</div></div>
                 </a>
-                <a
-                  href="/api/bookmarks/export?format=json"
-                  download
-                  onClick={() => setExportMenuOpen(false)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <a href="/api/bookmarks/export?format=json" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-orange-500">💾</span>
-                  <div>
-                    <div className="font-medium">Backup completo</div>
-                    <div className="text-xs text-gray-500">JSON</div>
-                  </div>
+                  <div><div className="font-medium">Backup completo</div><div className="text-xs text-gray-500">JSON</div></div>
                 </a>
-                <a
-                  href="/api/bookmarks/export?format=pdf"
-                  download
-                  onClick={() => setExportMenuOpen(false)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <a href="/api/bookmarks/export?format=pdf" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-red-500">📄</span>
-                  <div>
-                    <div className="font-medium">Documento PDF</div>
-                    <div className="text-xs text-gray-500">PDF</div>
-                  </div>
+                  <div><div className="font-medium">Documento PDF</div><div className="text-xs text-gray-500">PDF</div></div>
                 </a>
               </div>
             </>
@@ -231,21 +292,34 @@ export function Sidebar({
 
         {/* Import dropdown */}
         <div className="relative">
-          <button
-            onClick={() => setImportMenuOpen(!importMenuOpen)}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 justify-between"
-            disabled={importing}
-          >
-            <div className="flex items-center gap-2">
-              {importing ? (
-                <div className="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              <span>{importing ? 'Importing...' : 'Import bookmarks'}</span>
-            </div>
-            <ChevronDown className={`h-3 w-3 transition-transform ${importMenuOpen ? 'rotate-180' : ''}`} />
-          </button>
+          {collapsed ? (
+            <button
+              onClick={() => setImportMenuOpen(!importMenuOpen)}
+              aria-label="Import bookmarks"
+              aria-expanded={importMenuOpen}
+              aria-haspopup="true"
+              disabled={importing}
+              className="flex w-full items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              {importing
+                ? <div className="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full" />
+                : <Upload className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          ) : (
+            <button
+              onClick={() => setImportMenuOpen(!importMenuOpen)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 justify-between"
+              disabled={importing}
+            >
+              <div className="flex items-center gap-2 w-full">
+                {importing
+                  ? <div className="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full" />
+                  : <Upload className="h-4 w-4" />}
+                <span className={`truncate ${collapsed ? 'lg:hidden lg:opacity-0' : 'lg:opacity-100'}`}>{importing ? 'Importing...' : 'Import bookmarks'}</span>
+              </div>
+              <ChevronDown className={`h-3 w-3 transition-transform ${importMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+          )}
 
           {importMenuOpen && !importing && (
             <>
@@ -254,62 +328,88 @@ export function Sidebar({
                 onClick={() => setImportMenuOpen(false)}
                 aria-hidden="true"
               />
-              <div className="absolute bottom-full left-0 right-0 z-20 mb-2 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                <button
-                  onClick={() => {
-                    fileInputRef.current?.setAttribute('accept', '.html')
-                    fileInputRef.current?.click()
-                    setImportMenuOpen(false)
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+              <div className={`absolute z-20 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800 ${
+                collapsed
+                  ? 'bottom-0 left-full ml-1 w-52'
+                  : 'bottom-full left-0 right-0 mb-2'
+              }`}>
+                <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.html'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-blue-500">🌐</span>
-                  <div className="flex flex-col items-start">
-                    <div className="font-medium">Desde navegador</div>
-                    <div className="text-xs text-gray-500">HTML</div>
-                  </div>
+                  <div className="flex flex-col items-start"><div className="font-medium">Desde navegador</div><div className="text-xs text-gray-500">HTML</div></div>
                 </button>
-                <button
-                  onClick={() => {
-                    fileInputRef.current?.setAttribute('accept', '.csv')
-                    fileInputRef.current?.click()
-                    setImportMenuOpen(false)
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.csv'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-green-500">📊</span>
-                  <div className="flex flex-col items-start">
-                    <div className="font-medium">Desde Excel</div>
-                    <div className="text-xs text-gray-500">CSV</div>
-                  </div>
+                  <div className="flex flex-col items-start"><div className="font-medium">Desde Excel</div><div className="text-xs text-gray-500">CSV</div></div>
                 </button>
-                <button
-                  onClick={() => {
-                    fileInputRef.current?.setAttribute('accept', '.md,.markdown')
-                    fileInputRef.current?.click()
-                    setImportMenuOpen(false)
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.md,.markdown'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-purple-500">📝</span>
-                  <div className="flex flex-col items-start">
-                    <div className="font-medium">Desde Notion/Obsidian</div>
-                    <div className="text-xs text-gray-500">Markdown</div>
-                  </div>
+                  <div className="flex flex-col items-start"><div className="font-medium">Desde Notion/Obsidian</div><div className="text-xs text-gray-500">Markdown</div></div>
                 </button>
-                <button
-                  onClick={() => {
-                    fileInputRef.current?.setAttribute('accept', '.json')
-                    fileInputRef.current?.click()
-                    setImportMenuOpen(false)
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
+                <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.json'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-orange-500">💾</span>
-                  <div className="flex flex-col items-start">
-                    <div className="font-medium">Desde backup</div>
-                    <div className="text-xs text-gray-500">JSON</div>
-                  </div>
+                  <div className="flex flex-col items-start"><div className="font-medium">Desde backup</div><div className="text-xs text-gray-500">JSON</div></div>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="relative pt-1">
+          <button
+            onClick={() => setUserMenuOpen((open) => !open)}
+            className={`flex w-full items-center gap-3 px-3 rounded-lg py-2 text-left text-sm text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 ${collapsed ? 'lg:justify-center lg:px-2' : ''}`}
+            aria-label="User menu"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="true"
+          >
+            {user.image ? (
+              <Image
+                src={user.image}
+                alt=""
+                width={32}
+                height={32}
+                className="rounded-full"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                {user.name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
+            <span className={`flex-1 truncate ${collapsed ? 'lg:hidden' : ''}`}>{user.name || 'User profile'}</span>
+            <ChevronDown className={`h-3 w-3 transition-transform ${userMenuOpen ? 'rotate-180' : ''} ${collapsed ? 'lg:hidden' : ''}`} />
+          </button>
+
+          {userMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setUserMenuOpen(false)}
+                aria-hidden="true"
+              />
+              <div
+                role="menu"
+                className={`absolute z-20 rounded-xl border border-gray-200 bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 dark:border-gray-700 dark:bg-gray-800 ${
+                  collapsed
+                    ? 'bottom-0 left-full ml-1 w-44'
+                    : 'bottom-full left-0 right-0 mb-2'
+                }`}
+              >
+                <button
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                  onClick={() => setUserMenuOpen(false)}
+                >
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </button>
+                <hr className="my-1 border-gray-200 dark:border-gray-700" />
+                <button
+                  role="menuitem"
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-gray-50 dark:text-red-400 dark:hover:bg-gray-700"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
                 </button>
               </div>
             </>
@@ -377,27 +477,32 @@ function SidebarItem({
   selected,
   onSelect,
   icon,
+  collapsed,
 }: {
   label: string
   count?: number
   selected: boolean
   onSelect: () => void
   icon?: React.ReactNode
+  collapsed?: boolean
 }) {
   return (
     <button
       onClick={onSelect}
       aria-current={selected ? 'page' : undefined}
-      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 mb-3 text-sm transition-colors ${
+      title={collapsed ? label : undefined}
+      className={`flex w-full items-center rounded-lg py-2 mb-1 text-sm transition-colors ${
+        collapsed ? 'lg:justify-center lg:px-2 gap-2 px-3' : 'gap-2 px-3'
+      } ${
         selected
           ? 'bg-brand-50 font-medium text-brand-400 dark:bg-brand-900/30 dark:text-brand-300'
           : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
       }`}
     >
       {icon}
-      <span className="flex-1 truncate text-left">{label}</span>
+      <span className={`flex-1 truncate text-left ${collapsed ? 'lg:hidden' : ''}`}>{label}</span>
       {count !== undefined && (
-        <span className="text-xs text-gray-400">{count}</span>
+        <span className={`text-xs text-gray-400 ${collapsed ? 'lg:hidden' : ''}`}>{count}</span>
       )}
     </button>
   )
@@ -422,6 +527,13 @@ function FolderItem({
   const [menuOpen, setMenuOpen] = useState(false)
   const hasChildren = (folder.children?.length ?? 0) > 0
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [menuOpen])
+
   return (
     <div>
       <div className="group flex items-center">
@@ -431,30 +543,20 @@ function FolderItem({
           aria-label={expanded ? 'Collapse folder' : 'Expand folder'}
           className={`shrink-0 rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ${!hasChildren ? 'invisible' : ''}`}
         >
-          <svg
-            className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : ''}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
         </button>
 
         <button
           onClick={() => onSelect(folder.id)}
           aria-current={selectedFolderId === folder.id ? 'page' : undefined}
-          className={`flex flex-1 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors ${
+          className={`flex flex-1 w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors ${
             selectedFolderId === folder.id
               ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
               : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
           }`}
         >
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <span className="flex-1 truncate text-left">{folder.name}</span>
+          <FolderIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate text-left">{folder.name}</span>
           <span className="text-xs text-gray-400">{folder._count?.bookmarks ?? 0}</span>
         </button>
 
@@ -467,11 +569,7 @@ function FolderItem({
             aria-expanded={menuOpen}
             className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
-            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="5" cy="12" r="1.5" />
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="19" cy="12" r="1.5" />
-            </svg>
+            <MoreVertical className="h-4 w-4" aria-hidden="true" />
           </button>
 
           {menuOpen && (

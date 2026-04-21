@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Filter, X } from 'lucide-react'
 import type { BookmarkFilters } from '@linkmine/shared'
 
 interface Props {
@@ -41,9 +42,7 @@ export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, on
           aria-expanded={open}
           aria-controls="filter-panel"
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
+          <Filter className="h-3.5 w-3.5" aria-hidden="true" />
           Filters
           {activeCount > 0 && (
             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-brand-600 text-[10px] font-bold text-white">
@@ -65,9 +64,7 @@ export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, on
             aria-label="Close filters"
             title="Close filters"
           >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
 
@@ -96,9 +93,7 @@ export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, on
                     className="flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-100 dark:bg-brand-900/30 dark:text-brand-300 transition-colors"
                   >
                     {tag}
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X className="h-4 w-4" aria-hidden="true" />
                   </button>
                 ))}
                 {filters.icon && (

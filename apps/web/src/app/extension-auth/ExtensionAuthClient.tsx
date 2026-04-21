@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Check, X } from 'lucide-react'
 
 // Declare chrome global for TypeScript
 declare global {
@@ -123,9 +124,7 @@ export function ExtensionAuthClient({ extensionId, isValidId, validationError = 
           <>
             <div className="mt-6 flex justify-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" aria-hidden="true">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <Check className="h-6 w-6" />
               </div>
             </div>
             <p className="mt-4 font-semibold text-gray-900 dark:text-white">
@@ -141,9 +140,7 @@ export function ExtensionAuthClient({ extensionId, isValidId, validationError = 
           <>
             <div className="mt-6 flex justify-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" aria-hidden="true">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="h-6 w-6" />
               </div>
             </div>
             <p className="mt-4 font-semibold text-red-700 dark:text-red-400">Connection failed</p>

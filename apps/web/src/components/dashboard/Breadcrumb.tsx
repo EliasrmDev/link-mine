@@ -1,5 +1,7 @@
 'use client'
 
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+
 interface BreadcrumbItem {
   id: string | 'all'
   name: string
@@ -24,9 +26,7 @@ export function Breadcrumb({ hierarchy, onNavigate, onBack, className = '' }: Pr
           className="lg:hidden rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
           aria-label="Go back"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="h-4 w-4" />
         </button>
       )}
 
@@ -35,15 +35,7 @@ export function Breadcrumb({ hierarchy, onNavigate, onBack, className = '' }: Pr
         {hierarchy.map((item, index) => (
           <li key={item.id} className="flex items-center gap-2 whitespace-nowrap">
             {index > 0 && (
-              <svg
-                className="h-3 w-3 shrink-0 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <ChevronRight className="h-3 w-3 shrink-0 text-gray-400" aria-hidden="true" />
             )}
 
             {index === hierarchy.length - 1 ? (

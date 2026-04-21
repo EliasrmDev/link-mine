@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .gutter-stable-both {
+    scrollbar-gutter: stable both-edges;
+  }
+}
+
 @layer base {
   :root {
     color-scheme: light dark;
