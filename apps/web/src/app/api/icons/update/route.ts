@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withRLS } from '@/lib/prisma'
 import { requireAuth, badRequest } from '@/lib/api'
+import { validateIcon } from '@/lib/icon-validation'
 
 const BodySchema = z.object({
-  oldIcon: z.string().min(1).max(500),
-  newIcon: z.string().min(1).max(500),
+  oldIcon: z.string().min(1).max(2048),
+  newIcon: z.string().min(1).max(2048),
 })
 
 export async function POST(request: NextRequest) {
@@ -20,11 +21,20 @@ export async function POST(request: NextRequest) {
 
   const { oldIcon, newIcon } = parsed.data
 
+  // Validate the new icon value
+  const validation = validateIcon(newIcon)
+  if (!validation.valid) return badRequest(validation.error!)
+
   try {
     return await withRLS(auth.userId, async (tx) => {
       const result = await tx.bookmark.updateMany({
         where: { userId: auth.userId, icon: oldIcon },
-        data: { icon: newIcon },
+        data: { icon: newIcon.trim() },
+      })
+      // Also update the preset entry so the preset list stays consistent
+      await tx.userPreset.updateMany({
+        where: { userId: auth.userId, type: 'ICON', value: oldIcon },
+        data: { value: newIcon.trim() },
       })
       return NextResponse.json({ success: true, updated: result.count })
     })

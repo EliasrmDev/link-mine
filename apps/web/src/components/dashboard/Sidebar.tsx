@@ -565,7 +565,7 @@ function FolderItem({
             aria-label={`Folder options for ${folder.name}`}
             aria-haspopup="true"
             aria-expanded={menuOpen}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded w-8 p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <MoreVertical className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -575,17 +575,15 @@ function FolderItem({
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden="true" />
               <div
                 role="menu"
-                className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                className="absolute bottom-full right-0 z-20 mt-1 w-40 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
               >
-                {!folder.parentId && (
-                  <button
-                    role="menuitem"
-                    onClick={() => { onAddChild(folder.id); setMenuOpen(false) }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    Add sub-folder
-                  </button>
-                )}
+                <button
+                  role="menuitem"
+                  onClick={() => { onAddChild(folder.id); setMenuOpen(false) }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Add sub-folder
+                </button>
                 <button
                   role="menuitem"
                   onClick={() => { onEdit(folder); setMenuOpen(false) }}

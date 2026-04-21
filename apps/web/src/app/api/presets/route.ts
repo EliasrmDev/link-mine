@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { withRLS, type PrismaTx } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api'
 import { PRESET_TAGS, PRESET_ICONS } from '@linkmine/shared'
+import { validateIcon } from '@/lib/icon-validation'
 
 type PresetRow = { type: 'TAG' | 'ICON'; value: string }
 
@@ -66,10 +67,11 @@ export async function GET(request: NextRequest) {
   })
 }
 
-const CreateSchema = z.object({
-  type: z.enum(['TAG', 'ICON']),
-  value: z.string().min(1).max(50),
-})
+// Tags are short; icons may be URLs (up to 2 048 chars)
+const CreateSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('TAG'), value: z.string().min(1).max(100) }),
+  z.object({ type: z.literal('ICON'), value: z.string().min(1).max(2048) }),
+])
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request)
@@ -84,6 +86,15 @@ export async function POST(request: NextRequest) {
   }
 
   const { type, value } = parsed.data
+
+  // Validate icon format before persisting
+  if (type === 'ICON') {
+    const iconValidation = validateIcon(value)
+    if (!iconValidation.valid) {
+      return NextResponse.json({ error: iconValidation.error }, { status: 400 })
+    }
+  }
+
   const normalizedValue = type === 'TAG' ? value.toLowerCase().trim() : value.trim()
 
   return withRLS(auth.userId, async (tx) => {

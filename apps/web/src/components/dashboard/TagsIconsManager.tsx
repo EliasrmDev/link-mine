@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { ArrowDown, ArrowUp, LayoutGrid, List, Plus } from 'lucide-react'
 import { Modal } from '../ui/Modal'
+import { validateIcon } from '@/lib/icon-validation'
 
 interface Tag {
   name: string
@@ -44,9 +45,11 @@ export function TagsIconsManager({
   const [activeTab, setActiveTab] = useState<'tags' | 'icons'>('tags')
   const [editingTag, setEditingTag] = useState<{ old: string; new: string } | null>(null)
   const [editingIcon, setEditingIcon] = useState<{ old: string; new: string } | null>(null)
+  const [editingIconError, setEditingIconError] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'tag' | 'icon'; name: string } | null>(null)
   const [creatingTag, setCreatingTag] = useState<string>('')
   const [creatingIcon, setCreatingIcon] = useState<string>('')
+  const [creatingIconError, setCreatingIconError] = useState('')
   const [showCreateModal, setShowCreateModal] = useState<{ type: 'tag' | 'icon' } | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -146,6 +149,13 @@ export function TagsIconsManager({
   const handleUpdateIcon = async () => {
     if (!editingIcon || !editingIcon.new.trim()) return
 
+    const validation = validateIcon(editingIcon.new)
+    if (!validation.valid) {
+      setEditingIconError(validation.error ?? 'Invalid icon')
+      return
+    }
+    setEditingIconError('')
+
     setLoading(true)
     try {
       await onIconUpdated(editingIcon.old, editingIcon.new.trim())
@@ -174,6 +184,13 @@ export function TagsIconsManager({
 
   const handleCreateIcon = async () => {
     if (!creatingIcon.trim()) return
+
+    const validation = validateIcon(creatingIcon)
+    if (!validation.valid) {
+      setCreatingIconError(validation.error ?? 'Invalid icon')
+      return
+    }
+    setCreatingIconError('')
 
     setLoading(true)
     try {
@@ -446,7 +463,7 @@ export function TagsIconsManager({
                   >
                     {iconData.icon.startsWith('http') ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={iconData.icon} alt="" width={32} height={32} className="rounded" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                      <img src={iconData.icon} alt="" width={32} height={32} className="rounded" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none' }} />
                     ) : (
                       <span className="text-3xl leading-none">{iconData.icon}</span>
                     )}
@@ -488,6 +505,7 @@ export function TagsIconsManager({
                           width={32}
                           height={32}
                           className="rounded"
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none'
                             e.currentTarget.nextElementSibling?.classList.remove('hidden')
@@ -566,28 +584,32 @@ export function TagsIconsManager({
 
       {/* Edit Icon Modal */}
       {editingIcon && (
-        <Modal onClose={() => setEditingIcon(null)} title="Update Icon">
+        <Modal onClose={() => { setEditingIcon(null); setEditingIconError('') }} title="Update Icon">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Icon character
+                Icon
               </label>
               <input
                 type="text"
                 value={editingIcon.new}
-                onChange={(e) => setEditingIcon({ ...editingIcon, new: e.target.value })}
-                className="input w-full text-center text-2xl"
-                placeholder="🔖"
+                onChange={(e) => { setEditingIcon({ ...editingIcon, new: e.target.value }); setEditingIconError('') }}
+                className="input w-full"
+                placeholder="😀 or 🔖 or https://example.com/icon.png"
                 autoFocus
-                maxLength={2}
+                maxLength={2048}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Use emoji or any single character
-              </p>
+              {editingIconError ? (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">{editingIconError}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Accepts emoji, a short symbol (≤ 10 chars), or an image URL (https://…)
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setEditingIcon(null)}
+                onClick={() => { setEditingIcon(null); setEditingIconError('') }}
                 className="btn-secondary"
                 disabled={loading}
               >
@@ -684,30 +706,37 @@ export function TagsIconsManager({
         <Modal onClose={() => {
           setShowCreateModal(null)
           setCreatingIcon('')
+          setCreatingIconError('')
         }} title="Create New Icon Preset">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Icon character
+                Icon
               </label>
               <input
                 type="text"
                 value={creatingIcon}
-                onChange={(e) => setCreatingIcon(e.target.value)}
-                className="input w-full text-center text-2xl"
-                placeholder="🔖"
+                onChange={(e) => { setCreatingIcon(e.target.value); setCreatingIconError('') }}
+                className="input w-full"
+                placeholder="😀 or 🔖 or https://example.com/icon.png"
                 autoFocus
-                maxLength={2}
+                maxLength={2048}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Use emoji or any single character. This will be available as a preset when creating bookmarks.
-              </p>
+              {creatingIconError ? (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400 mt-1">{creatingIconError}</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Accepts emoji, a short symbol (≤ 10 chars), or an image URL (https://…).
+                  Available as a preset when creating bookmarks.
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowCreateModal(null)
                   setCreatingIcon('')
+                  setCreatingIconError('')
                 }}
                 className="btn-secondary"
                 disabled={loading}

@@ -25,6 +25,44 @@ const DEFAULT_FILTERS: BookmarkFilters = {
 
 const SSE_REFRESH_DEBOUNCE_MS = 200
 
+// ─── Recursive folder tree helpers ───────────────────────────────────────────
+
+/** Find a folder anywhere in the recursive tree by id. */
+function findFolderById(folders: Folder[], id: string): Folder | undefined {
+  for (const folder of folders) {
+    if (folder.id === id) return folder
+    if (folder.children?.length) {
+      const found = findFolderById(folder.children, id)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+/**
+ * Return the path from root down to the target folder (inclusive).
+ * Returns an empty array if not found.
+ */
+function getFolderAncestorPath(folders: Folder[], targetId: string): Folder[] {
+  for (const folder of folders) {
+    if (folder.id === targetId) return [folder]
+    if (folder.children?.length) {
+      const sub = getFolderAncestorPath(folder.children, targetId)
+      if (sub.length) return [folder, ...sub]
+    }
+  }
+  return []
+}
+
+/** Collect the ids of a folder and all its descendants. */
+function collectDescendantIds(folder: Folder, ids: Set<string> = new Set()): Set<string> {
+  ids.add(folder.id)
+  for (const child of folder.children ?? []) {
+    collectDescendantIds(child, ids)
+  }
+  return ids
+}
+
 // Helper function to detect if an icon is an automatic favicon
 function isAutomaticFavicon(icon: string, url: string): boolean {
   if (!icon || !url) return false
@@ -168,7 +206,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     setFilters(loadFilters())
   }, [])
 
-  // Collect all unique tags with usage counts (for FilterBar)
+  // Collect all unique tags with usage counts (global — for TagsIconsManager suggestions)
   const allTagsWithCounts = useMemo(() => {
     const counts = new Map<string, number>()
     bookmarks.forEach((b) => b.tags.forEach((t) => {
@@ -183,6 +221,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   // Plain string list (for TagsIconsManager suggestions)
   const allTags = useMemo(() => allTagsWithCounts.map((t) => t.name), [allTagsWithCounts])
 
+  // Global icons in use (for TagsIconsManager)
   const iconsInUse = useMemo(() => {
     const counts = new Map<string, number>()
     bookmarks.forEach((b) => {
@@ -194,6 +233,47 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
       .map(([icon, count]) => ({ icon, count }))
       .sort((a, b) => b.count - a.count)
   }, [bookmarks])
+
+  // Bookmarks scoped to the current view context (folder/unsorted/all), before other filters.
+  // Used to derive context-aware tags and icons for the FilterBar.
+  const contextBookmarks = useMemo(() => {
+    if (selectedFolderId === 'none') {
+      return optimisticBookmarks.filter((b) => !b.folderId)
+    }
+    if (selectedFolderId && selectedFolderId !== 'all') {
+      const targetFolder = findFolderById(folders, selectedFolderId)
+      const folderIds = targetFolder
+        ? collectDescendantIds(targetFolder)
+        : new Set([selectedFolderId])
+      return optimisticBookmarks.filter((b) => b.folderId && folderIds.has(b.folderId))
+    }
+    return optimisticBookmarks
+  }, [optimisticBookmarks, selectedFolderId, folders])
+
+  // Tags available in the current context (for FilterBar)
+  const contextTagsWithCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    contextBookmarks.forEach((b) => b.tags.forEach((t) => {
+      const tag = t.trim().toLowerCase()
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    }))
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  }, [contextBookmarks])
+
+  // Icons available in the current context (for FilterBar)
+  const contextIconsInUse = useMemo(() => {
+    const counts = new Map<string, number>()
+    contextBookmarks.forEach((b) => {
+      if (b.icon && !isAutomaticFavicon(b.icon, b.url)) {
+        counts.set(b.icon, (counts.get(b.icon) ?? 0) + 1)
+      }
+    })
+    return Array.from(counts.entries())
+      .map(([icon, count]) => ({ icon, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [contextBookmarks])
 
   // Derive unsorted count from all bookmarks (no separate API call needed)
   const unsortedCount = useMemo(
@@ -210,14 +290,12 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     if (selectedFolderId === 'none') {
       result = result.filter((b) => !b.folderId)
     } else if (selectedFolderId && selectedFolderId !== 'all') {
-      // Include bookmarks in this folder AND its child folders
-      const childFolderIds = new Set<string>()
-      childFolderIds.add(selectedFolderId)
-      const parentFolder = folders.find((f) => f.id === selectedFolderId)
-      if (parentFolder?.children) {
-        parentFolder.children.forEach((c) => childFolderIds.add(c.id))
-      }
-      result = result.filter((b) => b.folderId && childFolderIds.has(b.folderId))
+      // Include bookmarks in this folder AND all its descendants (unlimited depth)
+      const targetFolder = findFolderById(folders, selectedFolderId)
+      const folderIds = targetFolder
+        ? collectDescendantIds(targetFolder)
+        : new Set([selectedFolderId])
+      result = result.filter((b) => b.folderId && folderIds.has(b.folderId))
     }
 
     // 2. Search filter (uses deferredQuery for responsive input)
@@ -336,30 +414,14 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
       setFolderHierarchy([{ id: 'all', name: 'All bookmarks' }, { id: 'none', name: 'Unsorted' }])
       setCurrentSubfolders([])
     } else if (folderId) {
-      // Find the folder to navigate to
-      const targetFolder = folders.find(f => f.id === folderId) ||
-        folders.flatMap(f => f.children || []).find(c => c.id === folderId)
-
-      if (targetFolder) {
-        // Check if it's a child folder
-        const parentFolder = folders.find(f => f.children?.some(c => c.id === folderId))
-
-        if (parentFolder) {
-          // It's a child folder - show breadcrumb with parent
-          setFolderHierarchy([
-            { id: 'all', name: 'All bookmarks' },
-            { id: parentFolder.id, name: parentFolder.name },
-            { id: folderId, name: targetFolder.name }
-          ])
-          setCurrentSubfolders([])
-        } else {
-          // It's a parent folder - show its children as subfolders
-          setFolderHierarchy([
-            { id: 'all', name: 'All bookmarks' },
-            { id: folderId, name: targetFolder.name }
-          ])
-          setCurrentSubfolders(targetFolder.children || [])
-        }
+      const path = getFolderAncestorPath(folders, folderId)
+      if (path.length > 0) {
+        const targetFolder = path[path.length - 1]
+        setFolderHierarchy([
+          { id: 'all', name: 'All bookmarks' },
+          ...path.map((f) => ({ id: f.id, name: f.name })),
+        ])
+        setCurrentSubfolders(targetFolder.children ?? [])
       }
     }
 
@@ -373,6 +435,24 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
       navigateToFolder(parentLevel.id)
     }
   }, [folderHierarchy, navigateToFolder])
+
+  // When the folder list refreshes (e.g. after a rename), re-sync breadcrumb
+  // names and the current subfolder list without changing the selected folder.
+  useEffect(() => {
+    setFolderHierarchy((prev) =>
+      prev.map((item) => {
+        if (item.id === 'all' || item.id === 'none') return item
+        const fresh = findFolderById(folders, item.id as string)
+        return fresh ? { id: fresh.id, name: fresh.name } : item
+      }),
+    )
+  }, [folders])
+
+  useEffect(() => {
+    if (!selectedFolderId || selectedFolderId === 'all' || selectedFolderId === 'none') return
+    const fresh = findFolderById(folders, selectedFolderId)
+    if (fresh) setCurrentSubfolders(fresh.children ?? [])
+  }, [folders, selectedFolderId])
 
   // SSE subscription for real-time sync
   useEffect(() => {
@@ -672,8 +752,8 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
         {(activeView === 'bookmarks') && (
           <FilterBar
             filters={filters}
-            allTagsWithCounts={allTagsWithCounts}
-            iconsInUse={iconsInUse}
+            allTagsWithCounts={contextTagsWithCounts}
+            iconsInUse={contextIconsInUse}
             onChange={handleFiltersChange}
             onReset={handleFiltersReset}
           />

@@ -12,6 +12,18 @@ interface Props {
   onClose: () => void
 }
 
+/** Find a folder anywhere in the recursive tree by id. */
+function findFolderById(folders: Folder[], id: string): Folder | undefined {
+  for (const f of folders) {
+    if (f.id === id) return f
+    if (f.children?.length) {
+      const found = findFolderById(f.children, id)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 export function FolderForm({ folder, parentId, folders, onSave, onClose }: Props) {
   const isEditing = !!folder
   const formId = useId()
@@ -61,11 +73,8 @@ export function FolderForm({ folder, parentId, folders, onSave, onClose }: Props
     }
   }
 
-  // Find parent name for context
-  const parentFolder = parentId
-    ? folders.find((f) => f.id === parentId) ??
-      folders.flatMap((f) => f.children ?? []).find((c) => c.id === parentId)
-    : null
+  // Find parent name for context — search the full recursive tree
+  const parentFolder = parentId ? findFolderById(folders, parentId) ?? null : null
 
   return (
     <Modal

@@ -32,12 +32,13 @@ export function Pagination({
     <div className={`grid grid-cols-[auto_auto] sm:flex justify-end items-center gap-3 ${className}`.trim()}>
       {/* Per-page selector */}
       <div className="flex items-center gap-2">
-        <span className="text-xs w-8 sm:w-auto text-gray-500 dark:text-gray-400">Per page:</span>
+        <span className="text-xs sm:w-auto text-gray-500 dark:text-gray-400">Per page:</span>
         <select
           value={isShowAll ? 'Infinity' : pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
           className="text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500"
           aria-label="Items per page"
+          name="paginationSize"
         >
           {pageSizeOptions.map((size) => (
             <option key={size} value={size}>
