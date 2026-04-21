@@ -23,7 +23,6 @@ interface Props {
   onSidebarModeChange: (mode: SidebarMode) => void
   sidebarExpanded?: boolean
   onToggleSidebar?: () => void
-  sidebarHovered?: boolean
 }
 
 export function Sidebar({
@@ -39,7 +38,6 @@ export function Sidebar({
   onSidebarModeChange,
   sidebarExpanded,
   onToggleSidebar,
-  sidebarHovered,
 }: Props) {
   const { toggle } = useTheme()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
@@ -99,7 +97,7 @@ export function Sidebar({
             aria-label="Sidebar display options"
             aria-haspopup="true"
             aria-expanded={controlMenuOpen}
-            className="w-3 h-6 flex items-center justify-center border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            className="w-3.5 h-6 flex items-center justify-center border border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
           >
             <ChevronRight className={`w-4 h-4 transition-transform ${controlMenuOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
           </button>

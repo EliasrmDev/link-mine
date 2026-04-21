@@ -594,18 +594,6 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     await refreshFromServer()
   }
 
-  // Get current section name for mobile label
-  const getCurrentSectionName = (): string => {
-    if (activeView === 'tags-icons') {
-      return 'Tags & Icons'
-    }
-    if (folderHierarchy.length > 0) {
-      const current = folderHierarchy[folderHierarchy.length - 1]
-      return current.name
-    }
-    return 'All bookmarks'
-  }
-
   // Show old-links section only when not actively filtering/searching
   const showOldLinks = !query && !(filters.tags?.length) && !filters.icon
 
@@ -660,7 +648,6 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
               onSidebarModeChange={handleSidebarModeChange}
               sidebarExpanded={sidebarExpanded}
               onToggleSidebar={handleToggleSidebar}
-              sidebarHovered={sidebarHovered}
             />
           </div>
         </div>
