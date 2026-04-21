@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink, Group, Link, SquarePen, Trash2, Ungroup } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Group, Palette, SquarePen, Trash2, Ungroup } from 'lucide-react'
 import type { Bookmark, Folder, DomainGroupedBookmark, TreeNodeData } from '@linkmine/shared'
 import TreeView from '@/components/dashboard/TreeView'
 
@@ -272,6 +272,31 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
   const [loadingPreferences, setLoadingPreferences] = useState(false)
   const pendingGroupingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Per-domain colored-border toggle — persisted to localStorage
+  const [hiddenBorderDomains, setHiddenBorderDomains] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('linkmine_hidden_border_domains')
+      return saved ? new Set(JSON.parse(saved) as string[]) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+
+  const toggleBorderColor = useCallback((domain: string) => {
+    setHiddenBorderDomains(prev => {
+      const next = new Set(prev)
+      if (next.has(domain)) {
+        next.delete(domain)
+      } else {
+        next.add(domain)
+      }
+      try {
+        localStorage.setItem('linkmine_hidden_border_domains', JSON.stringify([...next]))
+      } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
   // Stable debounced update — optimistic: parent state is updated immediately,
   // API call is debounced and reverts on failure.
   const updateDomainGrouping = useCallback((domain: string, grouped: boolean) => {
@@ -367,6 +392,8 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                   onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
                   loadingPreferences={loadingPreferences}
                   canBeGrouped={false}
+                  colorBorderEnabled={!hiddenBorderDomains.has(bookmark.domain)}
+                  onToggleBorderColor={() => toggleBorderColor(bookmark.domain)}
                 />
               ))}
             </ul>
@@ -430,6 +457,8 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                     onToggleGrouping={(grouped) => updateDomainGrouping(bookmark.domain, grouped)}
                     loadingPreferences={loadingPreferences}
                     canBeGrouped={false}
+                    colorBorderEnabled={!hiddenBorderDomains.has(bookmark.domain)}
+                    onToggleBorderColor={() => toggleBorderColor(bookmark.domain)}
                   />
                 ))}
               </ul>
@@ -472,6 +501,8 @@ function BookmarkCard({
   onToggleGrouping,
   loadingPreferences = false,
   canBeGrouped = false,
+  colorBorderEnabled = true,
+  onToggleBorderColor,
 }: {
   bookmark: DomainGroupedBookmark
   onEdit: (b: Bookmark) => void
@@ -481,6 +512,8 @@ function BookmarkCard({
   onToggleGrouping?: (grouped: boolean) => void
   loadingPreferences?: boolean
   canBeGrouped?: boolean
+  colorBorderEnabled?: boolean
+  onToggleBorderColor?: () => void
 }) {
   const domain = (() => {
     try { return new URL(bookmark.url).hostname } catch { return '' }
@@ -503,9 +536,7 @@ function BookmarkCard({
           className={`card group flex flex-col transition hover:shadow-md dark:!bg-gray-800 ${
             due ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
           }`}
-          style={{
-            border: `2px solid hsl(${hue} 60% 50%)`,
-          }}
+          style={colorBorderEnabled ? { border: `2px solid hsl(${hue} 60% 50%)` } : undefined}
         >
           {/* Header with expand/collapse control */}
           <div className="p-4 pb-2 px-2">
@@ -590,18 +621,37 @@ function BookmarkCard({
 
           {/* Footer: group actions */}
           <div className="flex items-center justify-between gap-2 px-4 py-2 border-t border-gray-100 dark:border-gray-700">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleGrouping?.(false)
-              }}
-              disabled={loadingPreferences}
-              className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
-              title="Ungroup these bookmarks"
-            >
-              <Ungroup className="h-3.5 w-3.5" />
-              Ungroup
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleGrouping?.(false)
+                }}
+                disabled={loadingPreferences}
+                className="flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+                title="Ungroup these bookmarks"
+              >
+                <Ungroup className="h-3.5 w-3.5" />
+                Ungroup
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleBorderColor?.()
+                }}
+                className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded border transition-colors ${
+                  colorBorderEnabled
+                    ? 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200'
+                    : 'border-brand-200 dark:border-brand-800 text-brand-500 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 hover:bg-brand-100 dark:hover:bg-brand-900/40'
+                }`}
+                title={colorBorderEnabled ? 'Hide color border' : 'Show color border'}
+                aria-label={colorBorderEnabled ? 'Hide color border for this group' : 'Show color border for this group'}
+                aria-pressed={colorBorderEnabled}
+              >
+                <Palette className="h-3.5 w-3.5" style={colorBorderEnabled ? { color: `hsl(${hue} 60% 50%)` } : undefined} />
+              </button>
+            </div>
 
             <button
               onClick={(e) => {

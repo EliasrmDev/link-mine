@@ -160,7 +160,7 @@ export function Sidebar({
         {/* Folders */}
         {folders.length > 0 && (
           <div className="mt-3">
-            <div className={`flex gap-1.5 items-center justify-between px-2 py-1 transition-all duration-300 ${collapsed ? 'flex-col p-0' : ''}`}>
+            <div className={`grid grid-cols-[1fr_auto] gap-1.5 items-center justify-between py-1 transition-all duration-300 ${collapsed ? 'flex-col p-0' : ''}`}>
               <button
                 onClick={() => collapsed ? onToggleSidebar?.() : setFoldersExpanded((e) => !e)}
                 className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${collapsed ? 'flex-col' : ''}`}
@@ -548,7 +548,8 @@ function FolderItem({
         <button
           onClick={() => onSelect(folder.id)}
           aria-current={selectedFolderId === folder.id ? 'page' : undefined}
-          className={`flex flex-1 w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors ${
+          title={folder.name}
+          className={`flex flex-1 w-full truncate items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors ${
             selectedFolderId === folder.id
               ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
               : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
