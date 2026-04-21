@@ -1,14 +1,8 @@
+import React from 'react'
 import { NextRequest, NextResponse } from 'next/server'
 import { withRLS } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api'
-
-interface BookmarkData {
-  url: string
-  title: string
-  tags: string[]
-  folder: string
-  createdAt: Date
-}
+import { BookmarksDocument, type BookmarkData } from '@/documents/BookmarksDocument'
 
 function generateHTML(bookmarks: BookmarkData[]): string {
   // Group bookmarks by folder
@@ -80,45 +74,38 @@ function generateMarkdown(bookmarks: BookmarkData[]): string {
   return markdown
 }
 
-function generatePDF(bookmarks: BookmarkData[]): string {
-  // For PDF, we'll return HTML that can be converted to PDF by the browser
-  return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>BookMarks Export - LinkMine</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }
-        h1 { color: #333; border-bottom: 2px solid #333; }
-        h2 { color: #666; margin-top: 30px; }
-        .bookmark { margin: 10px 0; padding: 10px; border-left: 3px solid #007acc; }
-        .bookmark-title { font-weight: bold; color: #007acc; }
-        .bookmark-url { color: #666; font-size: 0.9em; }
-        .bookmark-tags { color: #888; font-size: 0.8em; }
-        .export-info { color: #888; font-size: 0.9em; margin-bottom: 20px; }
-    </style>
-</head>
-<body>
-    <h1>BookMarks Export</h1>
-    <div class="export-info">Exported on ${new Date().toLocaleString()}</div>
+async function generatePDF(bookmarks: BookmarkData[]): Promise<Buffer> {
+  const exportDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 
-    ${Object.entries(bookmarks.reduce((acc: Record<string, BookmarkData[]>, bookmark: BookmarkData) => {
-      const folderName = bookmark.folder
-      if (!acc[folderName]) acc[folderName] = []
-      acc[folderName].push(bookmark)
-      return acc
-    }, {})).map(([folder, bookmarks]: [string, BookmarkData[]]) => `
-    <h2>${folder}</h2>
-    ${bookmarks.map((bookmark: BookmarkData) => `
-    <div class="bookmark">
-        <div class="bookmark-title">${bookmark.title}</div>
-        <div class="bookmark-url">${bookmark.url}</div>
-        ${bookmark.tags.length > 0 ? `<div class="bookmark-tags">Tags: ${bookmark.tags.join(', ')}</div>` : ''}
-    </div>
-    `).join('')}
-    `).join('')}
-</body>
-</html>`
+  // Render the React document template to full HTML (with Paged.js embedded)
+  const { renderAsync } = await import('@htmldocs/render')
+  const html = await renderAsync(
+    <BookmarksDocument
+      bookmarks={bookmarks}
+      exportDate={exportDate}
+      totalCount={bookmarks.length}
+    />,
+  )
+
+  // Use Playwright Chromium to convert the HTML to a PDF buffer
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch()
+  try {
+    const page = await browser.newPage()
+    // networkidle waits for Paged.js to load from unpkg CDN and lay out pages
+    await page.setContent(html, { waitUntil: 'networkidle' })
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+    })
+    return Buffer.from(pdfBuffer)
+  } finally {
+    await browser.close()
+  }
 }
 
 // GET /api/bookmarks/export — returns bookmarks in various formats
@@ -178,11 +165,11 @@ export async function GET(request: NextRequest) {
     }
 
     case 'pdf': {
-      const pdfHtmlContent = generatePDF(exportBookmarks)
-      return new NextResponse(pdfHtmlContent, {
+      const pdfBuffer = await generatePDF(exportBookmarks)
+      return new NextResponse(pdfBuffer.buffer as ArrayBuffer, {
         headers: {
-          'Content-Type': 'text/html',
-          'Content-Disposition': `attachment; filename="linkmine-bookmarks-${timestamp}.html"`,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="linkmine-bookmarks-${timestamp}.pdf"`,
         },
       })
     }

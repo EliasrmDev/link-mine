@@ -281,7 +281,7 @@ export function Sidebar({
                 </a>
                 <a href="/api/bookmarks/export?format=pdf" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-red-500">📄</span>
-                  <div><div className="font-medium">PDF document</div><div className="text-xs text-gray-500">PDF</div></div>
+                  <div><div className="font-medium">PDF Document</div><div className="text-xs text-gray-500">PDF</div></div>
                 </a>
               </div>
             </>
