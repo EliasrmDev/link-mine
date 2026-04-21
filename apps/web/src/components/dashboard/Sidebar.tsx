@@ -265,23 +265,23 @@ export function Sidebar({
               }`}>
                 <a href="/api/bookmarks/export?format=html" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-blue-500">🌐</span>
-                  <div><div className="font-medium">Para navegador</div><div className="text-xs text-gray-500">HTML</div></div>
+                  <div><div className="font-medium">For browser</div><div className="text-xs text-gray-500">HTML</div></div>
                 </a>
                 <a href="/api/bookmarks/export?format=csv" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-green-500">📊</span>
-                  <div><div className="font-medium">Para Excel</div><div className="text-xs text-gray-500">CSV</div></div>
+                  <div><div className="font-medium">For Excel</div><div className="text-xs text-gray-500">CSV</div></div>
                 </a>
                 <a href="/api/bookmarks/export?format=markdown" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-purple-500">📝</span>
-                  <div><div className="font-medium">Para Notion/Obsidian</div><div className="text-xs text-gray-500">Markdown</div></div>
+                  <div><div className="font-medium">For Notion/Obsidian</div><div className="text-xs text-gray-500">Markdown</div></div>
                 </a>
                 <a href="/api/bookmarks/export?format=json" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-orange-500">💾</span>
-                  <div><div className="font-medium">Backup completo</div><div className="text-xs text-gray-500">JSON</div></div>
+                  <div><div className="font-medium">Full backup</div><div className="text-xs text-gray-500">JSON</div></div>
                 </a>
                 <a href="/api/bookmarks/export?format=pdf" download onClick={() => setExportMenuOpen(false)} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-red-500">📄</span>
-                  <div><div className="font-medium">Documento PDF</div><div className="text-xs text-gray-500">PDF</div></div>
+                  <div><div className="font-medium">PDF document</div><div className="text-xs text-gray-500">PDF</div></div>
                 </a>
               </div>
             </>
@@ -333,19 +333,19 @@ export function Sidebar({
               }`}>
                 <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.html'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-blue-500">🌐</span>
-                  <div className="flex flex-col items-start"><div className="font-medium">Desde navegador</div><div className="text-xs text-gray-500">HTML</div></div>
+                  <div className="flex flex-col items-start"><div className="font-medium">From browser</div><div className="text-xs text-gray-500">HTML</div></div>
                 </button>
                 <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.csv'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-green-500">📊</span>
-                  <div className="flex flex-col items-start"><div className="font-medium">Desde Excel</div><div className="text-xs text-gray-500">CSV</div></div>
+                  <div className="flex flex-col items-start"><div className="font-medium">From Excel</div><div className="text-xs text-gray-500">CSV</div></div>
                 </button>
                 <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.md,.markdown'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-purple-500">📝</span>
-                  <div className="flex flex-col items-start"><div className="font-medium">Desde Notion/Obsidian</div><div className="text-xs text-gray-500">Markdown</div></div>
+                  <div className="flex flex-col items-start"><div className="font-medium">From Notion/Obsidian</div><div className="text-xs text-gray-500">Markdown</div></div>
                 </button>
                 <button onClick={() => { fileInputRef.current?.setAttribute('accept', '.json'); fileInputRef.current?.click(); setImportMenuOpen(false) }} className="flex w-full items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                   <span className="text-orange-500">💾</span>
-                  <div className="flex flex-col items-start"><div className="font-medium">Desde backup</div><div className="text-xs text-gray-500">JSON</div></div>
+                  <div className="flex flex-col items-start"><div className="font-medium">From backup</div><div className="text-xs text-gray-500">JSON</div></div>
                 </button>
               </div>
             </>

@@ -127,7 +127,7 @@ async function init() {
   btnLogout.hidden = false
   showView('main')
 
-  // Inicializar banner como oculto hasta confirmar reminders
+  // Hide reminder banner until we confirm reminder state
   reminderBanner.hidden = true
 
   // Set correct shortcut in banner based on OS
@@ -209,7 +209,7 @@ async function refreshReminderState() {
 
   const result = await apiFetchDueReminders(refreshToken)
   if (!result.ok) {
-    // Si falla la API, asumir 0 reminders para ocultar el banner
+    // If the API fails, assume 0 reminders to hide the banner
     renderReminderBanner(0)
     updateReminderBadge(0)
     return
