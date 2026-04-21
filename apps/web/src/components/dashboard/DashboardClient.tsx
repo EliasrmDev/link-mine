@@ -562,7 +562,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   }
 
   const handleDeleteFolder = async (id: string) => {
-    if (!confirm('Delete this folder? Bookmarks inside will be moved to "All bookmarks".')) return
+    if (!confirm('Delete this folder? All bookmarks and sub-folders inside will be permanently deleted.')) return
     await fetch(`/api/folders/${id}`, { method: 'DELETE' })
     await Promise.all([fetchFolders(), fetchBookmarks()])
 

@@ -392,14 +392,15 @@ export function Sidebar({
                     : 'bottom-full left-0 right-0 mb-2'
                 }`}
               >
-                <button
+                <Link
+                  href="/settings"
                   role="menuitem"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
                   onClick={() => setUserMenuOpen(false)}
                 >
                   <Settings className="h-4 w-4" />
                   Settings
-                </button>
+                </Link>
                 <hr className="my-1 border-gray-200 dark:border-gray-700" />
                 <button
                   role="menuitem"

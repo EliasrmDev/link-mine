@@ -65,8 +65,8 @@ export default auth((request) => {
     return response
   }
 
-  // Protect dashboard pages and auth flows
-  if (pathname.startsWith('/dashboard') || pathname === '/extension-auth' || pathname.startsWith('/oauth/consent')) {
+  // Protect dashboard pages, settings, and auth flows
+  if (pathname.startsWith('/dashboard') || pathname === '/settings' || pathname === '/extension-auth' || pathname.startsWith('/oauth/consent')) {
     if (!session?.user?.id) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('callbackUrl', pathname)

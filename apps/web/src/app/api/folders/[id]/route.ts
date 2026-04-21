@@ -91,7 +91,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   })
 }
 
-// DELETE /api/folders/:id
+// DELETE /api/folders/:id — deletes the folder, all descendant folders, and all their bookmarks
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(request)
   if ('error' in auth) return auth.error
@@ -103,7 +103,35 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!existing) return notFound('Folder')
     if (existing.userId !== auth.userId) return forbidden()
 
-    await tx.folder.delete({ where: { id } })
+    // Collect the target folder and all its descendants
+    const allUserFolders = await tx.folder.findMany({
+      where: { userId: auth.userId },
+      select: { id: true, parentId: true },
+    })
+
+    const folderIdsToDelete = new Set<string>([id])
+    const collectDescendants = (parentId: string) => {
+      for (const f of allUserFolders) {
+        if (f.parentId === parentId && !folderIdsToDelete.has(f.id)) {
+          folderIdsToDelete.add(f.id)
+          collectDescendants(f.id)
+        }
+      }
+    }
+    collectDescendants(id)
+
+    const ids = Array.from(folderIdsToDelete)
+
+    // Delete all bookmarks that belong to any of those folders
+    await tx.bookmark.deleteMany({
+      where: { userId: auth.userId, folderId: { in: ids } },
+    })
+
+    // Delete all the folders (deepest-first to avoid FK conflicts)
+    await tx.folder.deleteMany({
+      where: { id: { in: ids } },
+    })
+
     broadcastToUser(auth.userId, { type: 'folders:changed' })
     return new NextResponse(null, { status: 204 })
   })

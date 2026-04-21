@@ -785,12 +785,9 @@ function NestedBookmarkItem({
     <div className={`group p-3 rounded-md border transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
       isLastClicked ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'border-gray-200 dark:border-gray-600'
     }`}>
-      <div className="flex items-start gap-3">
-        <div className="flex items-center gap-2">
-          <Link className="w-3 h-3 text-gray-400" />
-        </div>
+      <div className="grid grid-cols-[auto] items-start gap-3">
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 flex-col">
           <a
             href={bookmark.url}
             target="_blank"
@@ -822,7 +819,7 @@ function NestedBookmarkItem({
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 ml-auto">
           {(due || upcoming) && (
             <span
               className={`shrink-0 rounded px-1 py-0.5 text-xs font-semibold ${
@@ -837,7 +834,7 @@ function NestedBookmarkItem({
 
           <button
             onClick={() => onEdit(bookmark)}
-            className="opacity-0 group-hover:opacity-100 rounded p-1 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity"
+            className="group-hover:opacity-100 rounded p-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-opacity"
             aria-label={`Edit bookmark: ${bookmark.title}`}
           >
             <SquarePen className="h-3 w-3" />
@@ -845,7 +842,7 @@ function NestedBookmarkItem({
 
           <button
             onClick={() => onDelete(bookmark.id)}
-            className="opacity-0 group-hover:opacity-100 rounded p-1 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/20 transition-opacity"
+            className="group-hover:opacity-100 rounded p-2 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/20 transition-opacity"
             aria-label={`Delete bookmark: ${bookmark.title}`}
           >
             <Trash2 className="h-3 w-3" />
