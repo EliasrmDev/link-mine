@@ -93,12 +93,9 @@ async function generatePDF(bookmarks: BookmarkData[]): Promise<Buffer> {
 
   // Replace the CDN reference to paged.polyfill.js with the local node_modules copy
   // to avoid network dependency and prevent Playwright networkidle from timing out.
+  // require.resolve() finds the file regardless of cwd or deployment layout.
   const { readFile } = await import('fs/promises')
-  const { resolve } = await import('path')
-  const pagedJsPath = resolve(
-    process.cwd(),
-    '../../node_modules/@htmldocs/render/dist/paged.polyfill.js',
-  )
+  const pagedJsPath = require.resolve('@htmldocs/render/dist/paged.polyfill.js')
   const pagedJsContent = await readFile(pagedJsPath, 'utf8')
   html = html.replace(
     /<script[^>]+src="https:\/\/unpkg\.com[^"]*paged[^"]*"[^>]*><\/script>/i,
