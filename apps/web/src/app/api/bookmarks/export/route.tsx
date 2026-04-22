@@ -83,7 +83,7 @@ async function generatePDF(bookmarks: BookmarkData[]): Promise<Buffer> {
 
   // Render the React document template to full HTML (with Paged.js embedded)
   const { renderAsync } = await import('@htmldocs/render')
-  const html = await renderAsync(
+  let html = await renderAsync(
     <BookmarksDocument
       bookmarks={bookmarks}
       exportDate={exportDate}
@@ -91,12 +91,26 @@ async function generatePDF(bookmarks: BookmarkData[]): Promise<Buffer> {
     />,
   )
 
+  // Replace the CDN reference to paged.polyfill.js with the local node_modules copy
+  // to avoid network dependency and prevent Playwright networkidle from timing out.
+  const { readFile } = await import('fs/promises')
+  const { resolve } = await import('path')
+  const pagedJsPath = resolve(
+    process.cwd(),
+    '../../node_modules/@htmldocs/render/dist/paged.polyfill.js',
+  )
+  const pagedJsContent = await readFile(pagedJsPath, 'utf8')
+  html = html.replace(
+    /<script[^>]+src="https:\/\/unpkg\.com[^"]*paged[^"]*"[^>]*><\/script>/i,
+    `<script>${pagedJsContent}</script>`,
+  )
+
   // Use Playwright Chromium to convert the HTML to a PDF buffer
   const { chromium } = await import('playwright')
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage()
-    // networkidle waits for Paged.js to load from unpkg CDN and lay out pages
+    // networkidle waits for Paged.js to finish laying out pages
     await page.setContent(html, { waitUntil: 'networkidle' })
     const pdfBuffer = await page.pdf({
       format: 'A4',
