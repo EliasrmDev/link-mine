@@ -95,7 +95,7 @@ async function generatePDF(bookmarks: BookmarkData[]): Promise<Buffer> {
   // to avoid network dependency and prevent Playwright networkidle from timing out.
   // require.resolve() finds the file regardless of cwd or deployment layout.
   const { readFile } = await import('fs/promises')
-  const pagedJsPath = require.resolve('@htmldocs/render/dist/paged.polyfill.js')
+  const pagedJsPath = require.resolve('@htmldocs/render/paged.polyfill.js')
   const pagedJsContent = await readFile(pagedJsPath, 'utf8')
   html = html.replace(
     /<script[^>]+src="https:\/\/unpkg\.com[^"]*paged[^"]*"[^>]*><\/script>/i,
