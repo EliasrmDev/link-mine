@@ -14,9 +14,9 @@ export function isLocalDomain(domain: string): boolean {
   )
 }
 
-/** Returns the best favicon URL for a given page URL + domain. */
-export function getSmartFaviconUrl(url: string, domain: string): string {
-  if (!domain) return ''
+/** Returns the best favicon URL for a given page URL + domain, or null if unavailable. */
+export function getSmartFaviconUrl(url: string, domain: string): string | null {
+  if (!domain) return null
 
   try {
     const urlObj = new URL(url)

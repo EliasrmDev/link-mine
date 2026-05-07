@@ -79,7 +79,7 @@ export function SubfolderGrid({ subfolders, onNavigate, onEdit, onDelete, classN
               </div>
 
               {/* Actions (shown on hover) */}
-              <div className="mt-3 flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="mt-3 flex items-center justify-end gap-1">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()

@@ -146,30 +146,31 @@ function buildTreeFromBookmarks(parent: DomainGroupedBookmark): TreeNodeData[] {
     return { bookmark: b, segments }
   })
 
-  // Trie node
+  // Trie node — stores an array so multiple bookmarks sharing the same pathname
+  // (e.g. youtube.com/watch?v=A and youtube.com/watch?v=B) are all preserved.
   interface TrieNode {
     segment: string
-    bookmark?: DomainGroupedBookmark | typeof allBookmarks[number]
+    bookmarks: (DomainGroupedBookmark | Bookmark)[]
     children: Map<string, TrieNode>
   }
 
-  const root: TrieNode = { segment: '', children: new Map() }
+  const root: TrieNode = { segment: '', bookmarks: [], children: new Map() }
 
   for (const { bookmark: bm, segments } of entries) {
     let node = root
     for (const seg of segments) {
       if (!node.children.has(seg)) {
-        node.children.set(seg, { segment: seg, children: new Map() })
+        node.children.set(seg, { segment: seg, bookmarks: [], children: new Map() })
       }
       node = node.children.get(seg)!
     }
-    node.bookmark = bm
+    node.bookmarks.push(bm)
   }
 
-  // Collapse intermediate trie nodes that have no bookmark and only one child
+  // Collapse intermediate trie nodes that have no bookmarks and only one child
   // so we don't show empty path-segment nodes.
   function collapseNode(node: TrieNode): TrieNode {
-    if (!node.bookmark && node.children.size === 1) {
+    if (node.bookmarks.length === 0 && node.children.size === 1) {
       const [child] = node.children.values()
       const collapsed = collapseNode(child)
       // Merge segment labels for display purposes (not needed for logic)
@@ -184,51 +185,59 @@ function buildTreeFromBookmarks(parent: DomainGroupedBookmark): TreeNodeData[] {
 
   const collapsedRoot = collapseNode(root)
 
-  // Convert trie to TreeNodeData
-  function trieToTree(node: TrieNode): TreeNodeData | null {
-    if (!node.bookmark && node.children.size === 0) return null
-    const bm = node.bookmark
+  // Convert trie to a flat list of TreeNodeData (returns array to handle
+  // multiple bookmarks at the same path node without losing any of them).
+  function trieToTree(node: TrieNode): TreeNodeData[] {
+    if (node.bookmarks.length === 0 && node.children.size === 0) return []
+
     const childNodes: TreeNodeData[] = []
     for (const child of node.children.values()) {
-      const t = trieToTree(child)
-      if (t) childNodes.push(t)
+      childNodes.push(...trieToTree(child))
     }
 
-    if (!bm) {
-      if (childNodes.length === 0) return null
-      if (childNodes.length === 1) return childNodes[0]
+    if (node.bookmarks.length === 0) {
+      if (childNodes.length === 0) return []
+      if (childNodes.length === 1) return childNodes
       // Intermediate path segment with multiple children → virtual path-folder accordion
       const seg = node.segment || ''
-      return {
+      return [{
         id: `__path__${seg}`,
         title: `/${seg}/`,
         defaultExpanded: true,
         children: childNodes,
-      }
+      }]
     }
 
-    const treeNode: TreeNodeData = {
+    // One or more bookmarks land on this path node — emit one leaf per bookmark.
+    const leaves: TreeNodeData[] = node.bookmarks.map((bm) => ({
       id: bm.id,
       title: bm.title,
       href: bm.url,
-      defaultExpanded: bm.id === parent.id, // expand root by default
-      ...(childNodes.length > 0 ? { children: childNodes } : {}),
+      defaultExpanded: bm.id === parent.id,
+      // Only attach path-children to the leaf when there is exactly one bookmark
+      // at this node; with multiple bookmarks the children become siblings instead.
+      ...(node.bookmarks.length === 1 && childNodes.length > 0 ? { children: childNodes } : {}),
+    }))
+
+    // When multiple bookmarks share a node AND there are path-children, the
+    // children are appended as siblings after the leaves.
+    if (node.bookmarks.length > 1 && childNodes.length > 0) {
+      return [...leaves, ...childNodes]
     }
-    return treeNode
+    return leaves
   }
 
-  // The real root is the trie's child that corresponds to the parent bookmark.
-  // Collect all top-level trie children as forest roots.
+  // Collect all top-level nodes into the forest.
+  // IMPORTANT: use trieToTree(collapsedRoot) exclusively when root has bookmarks,
+  // so children are not added twice (once by the for-loop and once inside trieToTree).
   const forest: TreeNodeData[] = []
-  for (const child of collapsedRoot.children.values()) {
-    const t = trieToTree(child)
-    if (t) forest.push(t)
-  }
 
-  // If the root trie itself has a bookmark (path = '/'), prepend it
-  if (collapsedRoot.bookmark) {
-    const rootNode = trieToTree(collapsedRoot)
-    if (rootNode) forest.unshift(rootNode)
+  if (collapsedRoot.bookmarks.length > 0) {
+    forest.push(...trieToTree(collapsedRoot))
+  } else {
+    for (const child of collapsedRoot.children.values()) {
+      forest.push(...trieToTree(child))
+    }
   }
 
   // Fallback: if trie produced nothing, just return flat list
@@ -853,7 +862,7 @@ function BookmarkCard({
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={bookmark.icon?.startsWith('http') ? bookmark.icon : favicon}
+                  src={bookmark.icon?.startsWith('http') ? bookmark.icon : (favicon ?? undefined)}
                   alt=""
                   width={20}
                   height={20}
@@ -1018,7 +1027,7 @@ function BookmarkCard({
               {bookmark.icon}
             </span>
           )
-        ) : (
+        ) : favicon ? (
           // Default favicon fallback
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -1029,7 +1038,7 @@ function BookmarkCard({
             className="mt-0.5 h-4 w-4 shrink-0 rounded"
             onError={(e) => handleFaviconError(e, bookmark.url, domain)}
           />
-        )}
+        ) : null}
 
         {/* Title & URL */}
         <div className="min-w-0 flex-1">

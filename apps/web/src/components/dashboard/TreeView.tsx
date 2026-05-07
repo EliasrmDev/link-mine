@@ -64,12 +64,15 @@ function collectVisible(nodes: TreeNodeData[], expandedIds: Set<string>): string
 // TreeView — Client boundary (context + state live here)
 // ---------------------------------------------------------------------------
 
+const TREE_DEFAULT_VISIBLE = 5
+
 interface TreeViewProps {
   nodes: TreeNodeData[];
   label?: string;
+  maxVisible?: number;
 }
 
-export default function TreeView({ nodes, label = "Tree view" }: TreeViewProps) {
+export default function TreeView({ nodes, label = "Tree view", maxVisible = TREE_DEFAULT_VISIBLE }: TreeViewProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     () => collectDefaultExpanded(nodes)
   );
@@ -77,6 +80,7 @@ export default function TreeView({ nodes, label = "Tree view" }: TreeViewProps) 
   const [focusedId, setFocusedId] = useState<string | null>(
     () => nodes[0]?.id ?? null
   );
+  const [showAll, setShowAll] = useState(false);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds((prev) => {
@@ -85,6 +89,9 @@ export default function TreeView({ nodes, label = "Tree view" }: TreeViewProps) 
       return next;
     });
   }, []);
+
+  const visibleNodes = showAll ? nodes : nodes.slice(0, maxVisible);
+  const hiddenCount = nodes.length - maxVisible;
 
   return (
     <TreeContext.Provider
@@ -95,7 +102,7 @@ export default function TreeView({ nodes, label = "Tree view" }: TreeViewProps) 
         aria-label={label}
         className="select-none text-sm"
       >
-        {nodes.map((node, i) => (
+        {visibleNodes.map((node, i) => (
           <TreeNodeItem
             key={node.id}
             node={node}
@@ -106,6 +113,14 @@ export default function TreeView({ nodes, label = "Tree view" }: TreeViewProps) 
           />
         ))}
       </ul>
+      {hiddenCount > 0 && (
+        <button
+          onClick={() => setShowAll((s) => !s)}
+          className="mt-1 w-full text-left text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 px-1 py-0.5 rounded transition-colors"
+        >
+          {showAll ? "Show less" : `Show all ${nodes.length} links`}
+        </button>
+      )}
     </TreeContext.Provider>
   );
 }

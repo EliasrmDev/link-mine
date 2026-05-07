@@ -233,6 +233,8 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   }, [clearSelection])
 
   // ── Drag & Drop ──────────────────────────────────────────────────────────
+  // Disable DnD on touch-only devices (mobile) to avoid conflicts with scrolling
+  const isTouchOnly = typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
@@ -501,12 +503,8 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     if (selectedFolderId === 'none') {
       result = result.filter((b) => !b.folderId)
     } else if (selectedFolderId && selectedFolderId !== 'all') {
-      // Include bookmarks in this folder AND all its descendants (unlimited depth)
-      const targetFolder = findFolderById(folders, selectedFolderId)
-      const folderIds = targetFolder
-        ? collectDescendantIds(targetFolder)
-        : new Set([selectedFolderId])
-      result = result.filter((b) => b.folderId && folderIds.has(b.folderId))
+      // Show only bookmarks directly in this folder (not descendants)
+      result = result.filter((b) => b.folderId === selectedFolderId)
     }
 
     // 2. Search filter (uses deferredQuery for responsive input)
@@ -1002,7 +1000,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
 
   return (
     <DndContext
-      sensors={dndSensors}
+      sensors={isTouchOnly ? [] : dndSensors}
       collisionDetection={pointerWithin}
       onDragStart={(event) => {
         const data = event.active.data.current as { type: string; id: string; name?: string } | undefined
@@ -1247,15 +1245,17 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
         const faviconUrl = getSmartFaviconUrl(draggedBookmark.url, domain)
         return (
           <div className="card flex items-center gap-3 px-4 py-3 shadow-2xl ring-2 ring-brand-400 bg-white dark:bg-gray-800 w-12 pointer-events-none">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={faviconUrl}
-              alt=""
-              width={16}
-              height={16}
-              className="h-4 w-4 shrink-0 rounded"
-              onError={(e) => handleFaviconError(e, draggedBookmark.url, domain)}
-            />
+            {faviconUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={faviconUrl}
+                alt=""
+                width={16}
+                height={16}
+                className="h-4 w-4 shrink-0 rounded"
+                onError={(e) => handleFaviconError(e, draggedBookmark.url, domain)}
+              />
+            )}
           </div>
         )
       })() : draggedFolder ? (
