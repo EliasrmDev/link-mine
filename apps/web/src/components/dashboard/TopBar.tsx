@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Plus, Menu, X } from 'lucide-react'
+import { Search, Plus, Menu, X, CheckSquare } from 'lucide-react'
 import { Pagination } from './Pagination'
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
   onToggleSidebar: () => void
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
+  selectionMode?: boolean
+  onToggleSelectionMode?: () => void
 }
 
 export function TopBar({
@@ -30,6 +32,8 @@ export function TopBar({
   onToggleSidebar,
   onPageChange,
   onPageSizeChange,
+  selectionMode = false,
+  onToggleSelectionMode,
 }: Props) {
   const [searchExpanded, setSearchExpanded] = useState(false)
 
@@ -74,6 +78,19 @@ export function TopBar({
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {activeView === 'bookmarks' && onToggleSelectionMode && (
+              <button
+                onClick={onToggleSelectionMode}
+                aria-pressed={selectionMode}
+                className={`btn-secondary px-3 py-2 text-sm flex items-center gap-1.5 ${
+                  selectionMode ? 'bg-brand-50 text-brand-600 border-brand-300 dark:bg-brand-900/20 dark:text-brand-400 dark:border-brand-700' : ''
+                }`}
+                title={selectionMode ? 'Exit selection mode' : 'Select multiple items'}
+              >
+                <CheckSquare className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">{selectionMode ? 'Cancel' : 'Select'}</span>
+              </button>
+            )}
             {activeView === 'bookmarks' && (
               <button onClick={onAddBookmark} className="btn-primary px-4 py-3 text-base md:px-4 md:py-2 md:text-sm">
                 <Plus className="h-5 w-5 md:h-4 md:w-4" />

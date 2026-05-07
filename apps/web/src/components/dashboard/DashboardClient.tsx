@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect, useMemo, useOptimistic, useTransition, useDeferredValue } from 'react'
-import { X } from 'lucide-react'
+import { X, FolderIcon } from 'lucide-react'
 import type { Bookmark, Folder, BookmarkFilters } from '@linkmine/shared'
 import { Sidebar } from './Sidebar'
 import { BookmarkGrid } from './BookmarkGrid'
@@ -11,8 +11,14 @@ import { TopBar } from './TopBar'
 import { FilterBar } from './FilterBar'
 import { TagsIconsManager } from './TagsIconsManager'
 import { ConfirmModal } from '../ui/ConfirmModal'
+import { DeleteFolderModal } from '../ui/DeleteFolderModal'
 import { Breadcrumb } from './Breadcrumb'
 import { SubfolderGrid } from './SubfolderGrid'
+import { SelectionToolbar } from './SelectionToolbar'
+import { DndContext, DragOverlay, PointerSensor, pointerWithin, useSensor, useSensors } from '@dnd-kit/core'
+import type { DragEndEvent } from '@dnd-kit/core'
+import { snapCenterToCursor } from '@dnd-kit/modifiers'
+import { getSmartFaviconUrl, handleFaviconError } from '@/lib/favicon'
 
 const FILTERS_STORAGE_KEY = 'linkmine_filters'
 
@@ -170,6 +176,177 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const [pageSize, setPageSize] = useState(Infinity)
   const [currentPage, setCurrentPage] = useState(1)
 
+  // Selection state for bulk operations
+  const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<Set<string>>(new Set())
+  const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set())
+  const [selectionMode, setSelectionMode] = useState(false)
+
+  const toggleBookmarkSelection = useCallback((id: string) => {
+    setSelectedBookmarkIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }, [])
+
+  const selectBookmarkRange = useCallback((ids: string[]) => {
+    setSelectedBookmarkIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleGroupBookmarkSelection = useCallback((ids: string[]) => {
+    setSelectedBookmarkIds((prev) => {
+      const next = new Set(prev)
+      const allSelected = ids.every((id) => prev.has(id))
+      if (allSelected) {
+        for (const id of ids) next.delete(id)
+      } else {
+        for (const id of ids) next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  const selectAllBookmarks = useCallback((ids: string[]) => {
+    setSelectedBookmarkIds(new Set(ids))
+  }, [])
+
+  const toggleFolderSelection = useCallback((id: string) => {
+    setSelectedFolderIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => {
+    setSelectedBookmarkIds(new Set())
+    setSelectedFolderIds(new Set())
+  }, [])
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false)
+    clearSelection()
+  }, [clearSelection])
+
+  // ── Drag & Drop ──────────────────────────────────────────────────────────
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
+  const [draggedBookmark, setDraggedBookmark] = useState<Bookmark | null>(null)
+  const [draggedFolder, setDraggedFolder] = useState<{ name: string } | null>(null)
+  const [movingBookmarkId, setMovingBookmarkId] = useState<string | null>(null)
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null)
+  const [activeDragFolderId, setActiveDragFolderId] = useState<string | null>(null)
+
+  // IDs that cannot be drop targets during a folder drag (self + all descendants)
+  const invalidFolderDropIds = useMemo(() => {
+    if (!activeDragFolderId) return null
+    const dragged = findFolderById(folders, activeDragFolderId)
+    if (!dragged) return new Set([activeDragFolderId])
+    return collectDescendantIds(dragged)
+  }, [activeDragFolderId, folders])
+  // Ref so handleDragEnd always sees the latest set without stale-closure issues
+  const invalidFolderDropIdsRef = useRef<Set<string> | null>(null)
+  invalidFolderDropIdsRef.current = invalidFolderDropIds
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setDraggedBookmark(null)
+    setDraggedFolder(null)
+    setActiveDragFolderId(null)
+    const { active, over } = event
+    if (!over) return
+
+    const activeData = active.data.current as {
+      type: string
+      id: string
+      folderId?: string | null
+      parentId?: string | null
+    } | undefined
+    if (!activeData) return
+
+    const overId = over.id as string
+
+    // ── Folder move ─────────────────────────────────────────────────────────
+    if (activeData.type === 'folder') {
+      let targetParentId: string | null
+      if (overId === 'drop:unsorted') {
+        targetParentId = null
+      } else if (overId.startsWith('folder:')) {
+        const targetId = overId.slice('folder:'.length)
+        if (targetId === activeData.id) return // drop on self
+        targetParentId = targetId
+      } else {
+        return
+      }
+      // No-op if already at this parent
+      if (targetParentId === (activeData.parentId ?? null)) return
+      // Guard: never move into self or a descendant (belt-and-suspenders client check)
+      if (targetParentId && invalidFolderDropIdsRef.current?.has(targetParentId)) return
+      setMovingFolderId(activeData.id)
+      try {
+        const res = await fetch(`/api/folders/${activeData.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parentId: targetParentId }),
+        })
+        if (!res.ok) {
+          console.error('Folder move failed', await res.text())
+          return
+        }
+        const foldersRes = await fetch('/api/folders')
+        if (foldersRes.ok) setFolders(await foldersRes.json())
+      } catch (err) {
+        console.error('Folder move error', err)
+      } finally {
+        setMovingFolderId(null)
+      }
+      return
+    }
+
+    // ── Bookmark move ────────────────────────────────────────────────────────
+    if (activeData.type !== 'bookmark') return
+
+    let targetFolderId: string | null | undefined
+    if (overId === 'drop:unsorted') {
+      targetFolderId = null
+    } else if (overId.startsWith('folder:')) {
+      targetFolderId = overId.slice('folder:'.length)
+    } else {
+      return // dropped on unknown target
+    }
+
+    // No-op if dropped on current folder
+    if (targetFolderId === activeData.folderId) return
+
+    // Trigger the "being moved" animation on the card
+    setMovingBookmarkId(activeData.id)
+
+    try {
+      const res = await fetch(`/api/bookmarks/${activeData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: targetFolderId }),
+      })
+      if (!res.ok) {
+        setMovingBookmarkId(null)
+        console.error('DnD move failed', await res.text())
+        return
+      }
+      const updated: Bookmark = await res.json()
+      setBookmarks((prev) => prev.map((b) => b.id === updated.id ? updated : b))
+    } catch (err) {
+      console.error('DnD move error', err)
+    } finally {
+      // Clear animation id after it completes (~400ms keyframe duration + small buffer)
+      setTimeout(() => setMovingBookmarkId(null), 450)
+    }
+  }, [])
+
   // Optimistic UI for instant bookmark deletion
   const [optimisticBookmarks, removeOptimisticBookmark] = useOptimistic(
     bookmarks,
@@ -201,6 +378,15 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     open: boolean
     bookmarkId?: string
     bookmarkTitle?: string
+    bulkBookmarkIds?: string[]
+    bulkFolderIds?: string[]
+  }>({ open: false })
+
+  const [deleteFolderConfirm, setDeleteFolderConfirm] = useState<{
+    open: boolean
+    folderId?: string
+    folderName?: string
+    hasContents?: boolean
   }>({ open: false })
   const [returnToBookmarkAfterFolder, setReturnToBookmarkAfterFolder] = useState(false)
 
@@ -295,6 +481,16 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     () => bookmarks.filter((b) => !b.folderId).length,
     [bookmarks],
   )
+
+  // Live per-folder bookmark counts derived from local bookmarks state.
+  // Stays in sync immediately after DnD moves (no re-fetch needed).
+  const bookmarkCountByFolderId = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const b of bookmarks) {
+      if (b.folderId) map.set(b.folderId, (map.get(b.folderId) ?? 0) + 1)
+    }
+    return map
+  }, [bookmarks])
 
   // Client-side filtering: view → search → tags → icon → reminder → sort
   // Reads from optimisticBookmarks so optimistic deletes are reflected instantly
@@ -484,14 +680,18 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     const onBookmarkDeleted = () => { scheduleRefresh() }
     const onFoldersChanged = () => { scheduleRefresh() }
 
+    const onBookmarksBulkDeleted = () => { scheduleRefresh() }
+
     es.addEventListener('bookmark:saved', onBookmarkSaved)
     es.addEventListener('bookmark:deleted', onBookmarkDeleted)
+    es.addEventListener('bookmarks:bulk-deleted', onBookmarksBulkDeleted)
     es.addEventListener('folders:changed', onFoldersChanged)
 
     return () => {
       if (sseRefreshTimeout.current) clearTimeout(sseRefreshTimeout.current)
       es.removeEventListener('bookmark:saved', onBookmarkSaved)
       es.removeEventListener('bookmark:deleted', onBookmarkDeleted)
+      es.removeEventListener('bookmarks:bulk-deleted', onBookmarksBulkDeleted)
       es.removeEventListener('folders:changed', onFoldersChanged)
       es.close()
     }
@@ -557,10 +757,56 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     setDeleteConfirm({ open: true, bookmarkId: id, bookmarkTitle: bookmark?.title })
   }
 
+  const handleGroupBulkDelete = useCallback((ids: string[], domain: string) => {
+    setDeleteConfirm({
+      open: true,
+      bulkBookmarkIds: ids,
+      bookmarkTitle: `all ${ids.length} bookmarks from ${domain}`,
+    })
+  }, [])
+
   const doDeleteBookmark = async () => {
     const id = deleteConfirm.bookmarkId
-    if (!id) return
+    const bulkBookmarkIds = deleteConfirm.bulkBookmarkIds
+    const bulkFolderIds = deleteConfirm.bulkFolderIds
     setDeleteConfirm({ open: false })
+
+    // Bulk delete path
+    if (bulkBookmarkIds || bulkFolderIds) {
+      startTransition(async () => {
+        const promises: Promise<Response>[] = []
+        if (bulkBookmarkIds?.length) {
+          // Optimistically remove from UI
+          setBookmarks((prev) => prev.filter((b) => !bulkBookmarkIds.includes(b.id)))
+          promises.push(
+            fetch('/api/bookmarks/bulk-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: bulkBookmarkIds }),
+            }),
+          )
+        }
+        if (bulkFolderIds?.length) {
+          promises.push(
+            fetch('/api/folders/bulk-delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: bulkFolderIds }),
+            }),
+          )
+        }
+        const results = await Promise.all(promises)
+        if (results.some((r) => !r.ok)) {
+          alert('Some items could not be deleted. Please try again.')
+        }
+        await Promise.all([fetchBookmarks(), fetchFolders()])
+        exitSelectionMode()
+      })
+      return
+    }
+
+    // Single delete path
+    if (!id) return
 
     startTransition(async () => {
       removeOptimisticBookmark(id)
@@ -576,19 +822,81 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
     })
   }
 
-  const handleDeleteFolder = async (id: string) => {
-    if (!confirm('Delete this folder? All bookmarks and sub-folders inside will be permanently deleted.')) return
-    await fetch(`/api/folders/${id}`, { method: 'DELETE' })
+  const handleBulkDelete = useCallback(() => {
+    const bIds = Array.from(selectedBookmarkIds)
+    const fIds = Array.from(selectedFolderIds)
+    const bookmarkCount = bIds.length
+    const folderCount = fIds.length
+
+    const parts: string[] = []
+    if (bookmarkCount > 0) parts.push(`${bookmarkCount} bookmark${bookmarkCount !== 1 ? 's' : ''}`)
+    if (folderCount > 0) parts.push(`${folderCount} folder${folderCount !== 1 ? 's' : ''} (and all their contents)`)
+
+    setDeleteConfirm({
+      open: true,
+      bulkBookmarkIds: bIds.length > 0 ? bIds : undefined,
+      bulkFolderIds: fIds.length > 0 ? fIds : undefined,
+      bookmarkTitle: `${parts.join(' and ')}`,
+    })
+  }, [selectedBookmarkIds, selectedFolderIds])
+
+  const handleDeleteFolder = (id: string) => {
+    // Find the folder in the tree to determine its name and whether it has contents.
+    const findFolder = (list: Folder[], target: string): Folder | null => {
+      for (const f of list) {
+        if (f.id === target) return f
+        if (f.children?.length) {
+          const found = findFolder(f.children, target)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const folder = findFolder(folders, id)
+    const hasSubFolders = (folder?.children?.length ?? 0) > 0
+    const hasBookmarks = bookmarks.some((b) => b.folderId === id)
+
+    setDeleteFolderConfirm({
+      open: true,
+      folderId: id,
+      folderName: folder?.name ?? 'this folder',
+      hasContents: hasSubFolders || hasBookmarks,
+    })
+  }
+
+  const doDeleteFolder = async (mode: 'cascade' | 'folder-only') => {
+    const id = deleteFolderConfirm.folderId
+    setDeleteFolderConfirm({ open: false })
+    if (!id) return
+
+    const url = mode === 'folder-only'
+      ? `/api/folders/${id}?mode=folder-only`
+      : `/api/folders/${id}`
+
+    await fetch(url, { method: 'DELETE' })
     await Promise.all([fetchFolders(), fetchBookmarks()])
 
-    // If the deleted folder is currently selected, navigate back to parent or "All bookmarks"
     if (selectedFolderId === id) {
       if (folderHierarchy.length > 1) {
-        const parentLevel = folderHierarchy[folderHierarchy.length - 2]
-        navigateToFolder(parentLevel.id)
+        navigateToFolder(folderHierarchy[folderHierarchy.length - 2].id)
       } else {
         navigateToFolder('all')
       }
+    }
+  }
+
+  // Tags and Icons Management
+  const handleBulkDeleteFolders = async (ids: string[]) => {
+    if (ids.length === 0) return
+    await fetch('/api/folders/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    await Promise.all([fetchFolders(), fetchBookmarks()])
+    if (typeof selectedFolderId === 'string' && ids.includes(selectedFolderId)) {
+      navigateToFolder('all')
     }
   }
 
@@ -693,6 +1001,20 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const showOldLinks = !query && !(filters.tags?.length) && !filters.icon
 
   return (
+    <DndContext
+      sensors={dndSensors}
+      collisionDetection={pointerWithin}
+      onDragStart={(event) => {
+        const data = event.active.data.current as { type: string; id: string; name?: string } | undefined
+        if (data?.type === 'bookmark') {
+          setDraggedBookmark(bookmarks.find((b) => b.id === data.id) ?? null)
+        } else if (data?.type === 'folder') {
+          setDraggedFolder({ name: data.name ?? '' })
+          setActiveDragFolderId(data.id)
+        }
+      }}
+      onDragEnd={handleDragEnd}
+    >
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -731,6 +1053,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
               user={user}
               folders={folders}
               unsortedCount={unsortedCount}
+              bookmarkCountByFolderId={bookmarkCountByFolderId}
               selectedFolderId={selectedFolderId}
               onSelectFolder={(id) => {
                 navigateToFolder(id)
@@ -739,6 +1062,9 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
               onAddFolder={(parentId) => setFolderForm({ open: true, parentId })}
               onEditFolder={(folder) => setFolderForm({ open: true, folder })}
               onDeleteFolder={handleDeleteFolder}
+              onBulkDeleteFolders={handleBulkDeleteFolders}
+              movingFolderId={movingFolderId}
+              invalidFolderDropIds={invalidFolderDropIds ?? undefined}
               sidebarMode={sidebarMode}
               onSidebarModeChange={handleSidebarModeChange}
               sidebarExpanded={sidebarExpanded}
@@ -762,6 +1088,10 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onPageChange={setCurrentPage}
           onPageSizeChange={setPageSize}
+          selectionMode={selectionMode}
+          onToggleSelectionMode={() => {
+            if (selectionMode) { exitSelectionMode() } else { setSelectionMode(true) }
+          }}
         />
 
         {(activeView === 'bookmarks') && (
@@ -771,6 +1101,10 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
             iconsInUse={contextIconsInUse}
             onChange={handleFiltersChange}
             onReset={handleFiltersReset}
+            selectionMode={selectionMode}
+            allSelected={filteredBookmarks.length > 0 && filteredBookmarks.every((b) => selectedBookmarkIds.has(b.id))}
+            onSelectAll={() => selectAllBookmarks(filteredBookmarks.map((b) => b.id))}
+            onDeselectAll={clearSelection}
           />
         )}
 
@@ -793,6 +1127,9 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
                   onNavigate={navigateToFolder}
                   onEdit={(folder) => setFolderForm({ open: true, folder })}
                   onDelete={handleDeleteFolder}
+                  selectionMode={selectionMode}
+                  selectedFolderIds={selectedFolderIds}
+                  onToggleFolderSelect={toggleFolderSelection}
                 />
               )}
 
@@ -805,12 +1142,19 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
                 onDomainPreferenceChange={handleDomainPreferenceChange}
                 onEdit={(b) => setBookmarkForm({ open: true, bookmark: b })}
                 onDelete={handleDeleteBookmark}
+                onBulkDelete={handleGroupBulkDelete}
                 showOldLinks={showOldLinks}
                 initialBordersEnabled={
                   initialDashboardPrefs['dashboard:borders_global'] !== undefined
                     ? initialDashboardPrefs['dashboard:borders_global'] !== 'false'
                     : undefined
                 }
+                selectionMode={selectionMode}
+                selectedIds={selectedBookmarkIds}
+                onToggleSelect={toggleBookmarkSelection}
+                onToggleGroupSelect={toggleGroupBookmarkSelection}
+                onSelectRange={selectBookmarkRange}
+                movingBookmarkId={movingBookmarkId}
               />
             </div>
           ) : (
@@ -829,6 +1173,14 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
           )}
         </main>
       </div>
+
+      {/* Selection toolbar */}
+      <SelectionToolbar
+        selectedBookmarks={selectedBookmarkIds.size}
+        selectedFolders={selectedFolderIds.size}
+        onDelete={handleBulkDelete}
+        onClear={exitSelectionMode}
+      />
 
       {/* Modals */}
       {bookmarkForm.open && (
@@ -862,11 +1214,13 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
 
       {deleteConfirm.open && (
         <ConfirmModal
-          title="Delete bookmark?"
+          title={deleteConfirm.bulkBookmarkIds || deleteConfirm.bulkFolderIds ? 'Delete selected items?' : 'Delete bookmark?'}
           description={
-            deleteConfirm.bookmarkTitle
-              ? `"${deleteConfirm.bookmarkTitle}" will be permanently removed.`
-              : 'This bookmark will be permanently removed.'
+            deleteConfirm.bulkBookmarkIds || deleteConfirm.bulkFolderIds
+              ? `${deleteConfirm.bookmarkTitle} will be permanently deleted. This cannot be undone.`
+              : deleteConfirm.bookmarkTitle
+                ? `"${deleteConfirm.bookmarkTitle}" will be permanently removed.`
+                : 'This bookmark will be permanently removed.'
           }
           confirmLabel="Delete"
           destructive
@@ -874,6 +1228,43 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
           onCancel={() => setDeleteConfirm({ open: false })}
         />
       )}
+
+      {deleteFolderConfirm.open && (
+        <DeleteFolderModal
+          folderName={deleteFolderConfirm.folderName ?? 'this folder'}
+          hasContents={deleteFolderConfirm.hasContents ?? false}
+          onFolderOnly={() => doDeleteFolder('folder-only')}
+          onCascade={() => doDeleteFolder('cascade')}
+          onCancel={() => setDeleteFolderConfirm({ open: false })}
+        />
+      )}
     </div>
+
+    {/* DragOverlay: floating card that follows the cursor exactly */}
+    <DragOverlay modifiers={[snapCenterToCursor]} dropAnimation={null}>
+      {draggedBookmark ? (() => {
+        const domain = (() => { try { return new URL(draggedBookmark.url).hostname } catch { return '' } })()
+        const faviconUrl = getSmartFaviconUrl(draggedBookmark.url, domain)
+        return (
+          <div className="card flex items-center gap-3 px-4 py-3 shadow-2xl ring-2 ring-brand-400 bg-white dark:bg-gray-800 w-12 pointer-events-none">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={faviconUrl}
+              alt=""
+              width={16}
+              height={16}
+              className="h-4 w-4 shrink-0 rounded"
+              onError={(e) => handleFaviconError(e, draggedBookmark.url, domain)}
+            />
+          </div>
+        )
+      })() : draggedFolder ? (
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 shadow-xl ring-2 ring-brand-400 text-sm font-medium text-gray-700 dark:text-gray-300 pointer-events-none">
+          <FolderIcon className="h-4 w-4 shrink-0 text-brand-400" aria-hidden="true" />
+          <span>{draggedFolder.name}</span>
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
   )
 }

@@ -16,6 +16,7 @@ ALTER TABLE "Bookmark" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Folder" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "UserPreset" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "UserPreference" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "_prisma_migrations" ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 2. CREATE SECURITY POLICIES

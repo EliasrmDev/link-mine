@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import { auth } from '@/lib/auth'
 import { withRLS } from '@/lib/prisma'
 import { DashboardClient } from '@/components/dashboard/DashboardClient'
+import type { Folder } from '@linkmine/shared'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -54,22 +55,20 @@ export default async function DashboardPage() {
   const initialDashboardPrefs: Record<string, string> = {}
   for (const p of dashboardPrefsRaw) initialDashboardPrefs[p.key] = p.value
 
-  // Build tree
-  const folders = foldersFlat
-    .filter((f) => !f.parentId)
-    .map((f) => ({
-      ...f,
-      createdAt: f.createdAt.toISOString(),
-      updatedAt: f.updatedAt.toISOString(),
-      children: foldersFlat
-        .filter((c) => c.parentId === f.id)
-        .map((c) => ({
-          ...c,
-          createdAt: c.createdAt.toISOString(),
-          updatedAt: c.updatedAt.toISOString(),
-          children: [],
-        })),
-    }))
+  // Build a recursive tree from the flat list so any depth of nesting is
+  // included in the SSR payload (matches what GET /api/folders already does).
+  type FlatFolder = (typeof foldersFlat)[number]
+  const buildTree = (items: FlatFolder[], parentId: string | null): Folder[] =>
+    items
+      .filter((f) => f.parentId === parentId)
+      .map((f) => ({
+        ...f,
+        createdAt: f.createdAt.toISOString(),
+        updatedAt: f.updatedAt.toISOString(),
+        children: buildTree(items, f.id),
+      }))
+
+  const folders = buildTree(foldersFlat, null)
 
   const serializedBookmarks = bookmarks.map((b) => ({
     ...b,

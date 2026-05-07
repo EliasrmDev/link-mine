@@ -18,9 +18,12 @@ interface Props {
   onEdit: (folder: Folder) => void
   onDelete: (folderId: string) => void
   className?: string
+  selectionMode?: boolean
+  selectedFolderIds?: Set<string>
+  onToggleFolderSelect?: (id: string) => void
 }
 
-export function SubfolderGrid({ subfolders, onNavigate, onEdit, onDelete, className = '' }: Props) {
+export function SubfolderGrid({ subfolders, onNavigate, onEdit, onDelete, className = '', selectionMode = false, selectedFolderIds = new Set(), onToggleFolderSelect }: Props) {
   if (subfolders.length === 0) return null
 
   return (
@@ -41,9 +44,25 @@ export function SubfolderGrid({ subfolders, onNavigate, onEdit, onDelete, classN
           return (
             <div
               key={folder.id}
-              className="group card flex flex-col p-4 transition hover:shadow-md cursor-pointer"
-              onClick={() => onNavigate(folder.id)}
+              className={`group card flex flex-col p-4 transition hover:shadow-md cursor-pointer relative ${
+                selectionMode && selectedFolderIds.has(folder.id) ? 'ring-2 ring-brand-500' : ''
+              }`}
+              onClick={() => !selectionMode && onNavigate(folder.id)}
             >
+              {selectionMode && (
+                <label
+                  className="absolute top-2 left-2 z-10 flex cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedFolderIds.has(folder.id)}
+                    onChange={() => onToggleFolderSelect?.(folder.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    aria-label={`Select folder: ${folder.name}`}
+                  />
+                </label>
+              )}
               {/* Folder Icon and Name */}
               <div className="flex items-start gap-3">
                 <span className="text-blue-500 dark:text-blue-400 mt-1" aria-hidden="true">

@@ -19,13 +19,15 @@ bus.setMaxListeners(2000) // allow many concurrent connections
 // ─── Event shapes ─────────────────────────────────────────────────────────────
 
 export type SyncEvent =
-  | { type: 'bookmark:saved';   bookmark: Record<string, unknown> }
-  | { type: 'bookmark:deleted'; id: string }
+  | { type: 'bookmark:saved';         bookmark: Record<string, unknown> }
+  | { type: 'bookmark:deleted';       id: string }
+  | { type: 'bookmarks:bulk-deleted'; ids: string[] }
   | { type: 'folders:changed' }
 
 const SyncEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('bookmark:saved'), bookmark: z.record(z.unknown()) }),
   z.object({ type: z.literal('bookmark:deleted'), id: z.string() }),
+  z.object({ type: z.literal('bookmarks:bulk-deleted'), ids: z.array(z.string()) }),
   z.object({ type: z.literal('folders:changed') }),
 ])
 

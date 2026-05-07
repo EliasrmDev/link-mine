@@ -19,6 +19,16 @@ const config: Config = {
           900: '#1e3a8a',
         },
       },
+      keyframes: {
+        'bookmark-move': {
+          '0%':   { opacity: '1', transform: 'scale(1)',    boxShadow: '0 0 0 0px rgba(96,165,250,0)' },
+          '25%':  { opacity: '1', transform: 'scale(1.04)', boxShadow: '0 0 0 3px rgba(96,165,250,0.55), 0 0 14px rgba(96,165,250,0.3)' },
+          '100%': { opacity: '0', transform: 'scale(0.94)', boxShadow: '0 0 0 0px rgba(96,165,250,0)' },
+        },
+      },
+      animation: {
+        'bookmark-move': 'bookmark-move 0.4s ease-out forwards',
+      },
     },
   },
   plugins: [],

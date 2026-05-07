@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Filter, X } from 'lucide-react'
+import { CheckSquare, Filter, Square, X } from 'lucide-react'
 import type { BookmarkFilters } from '@linkmine/shared'
 
 interface Props {
@@ -11,9 +11,13 @@ interface Props {
   onChange: (f: BookmarkFilters) => void
   onReset: () => void
   onClose?: () => void
+  selectionMode?: boolean
+  allSelected?: boolean
+  onSelectAll?: () => void
+  onDeselectAll?: () => void
 }
 
-export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, onReset, onClose }: Props) {
+export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, onReset, onClose, selectionMode, allSelected, onSelectAll, onDeselectAll }: Props) {
   const [open, setOpen] = useState(false)
 
   const activeCount = [
@@ -50,6 +54,20 @@ export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, on
             </span>
           )}
         </button>
+
+        {/* Select All — visible only in selection mode */}
+        {selectionMode && (
+          <button
+            onClick={allSelected ? onDeselectAll : onSelectAll}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
+            aria-label={allSelected ? 'Deselect all bookmarks' : 'Select all bookmarks'}
+          >
+            {allSelected
+              ? <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" />
+              : <Square className="h-3.5 w-3.5" aria-hidden="true" />}
+            {allSelected ? 'Deselect All' : 'Select All'}
+          </button>
+        )}
 
         <div className="flex-1"></div>
 

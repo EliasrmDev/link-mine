@@ -2,58 +2,71 @@ import { NextRequest, NextResponse } from 'next/server'
 import { withRLS } from '@/lib/prisma'
 import { requireAuth } from '@/lib/api'
 
-function parseHTML(htmlContent: string): Array<{url: string, title: string, tags: string[], folder?: string}> {
-  const bookmarks: Array<{url: string, title: string, tags: string[], folder?: string}> = []
+/** Parsed bookmark with full folder hierarchy (empty array = no folder). */
+type ParsedBookmark = {
+  url: string
+  title: string
+  tags: string[]
+  /** Ordered list of folder names from root to leaf, e.g. ['Work', 'Dev'] */
+  folderPath: string[]
+}
 
-  // Clean and normalize the HTML content
-  const cleanHtml = htmlContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-
-  // Stack to track current folder hierarchy
+function parseHTML(htmlContent: string): ParsedBookmark[] {
+  const bookmarks: ParsedBookmark[] = []
   const folderStack: string[] = []
+  // Tracks whether each DL level is a folder DL (true) or a non-folder DL (false, e.g. root).
+  const dlIsFolderStack: boolean[] = []
+  // H3 just seen — will be pushed onto folderStack when the next <DL> opens.
+  let pendingFolder: string | null = null
 
-  // Split content into lines for easier parsing
-  const lines = cleanHtml.split('\n')
+  const content = htmlContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
+  // One-pass token scanner over the full document string (not line-by-line).
+  //
+  // Alternation groups:
+  //   match[1]       — H3 folder name
+  //   (no groups)    — <DL> open  → identified by match[0].charAt(1) !== '/'
+  //   (no groups)    — </DL> close → identified by match[0].charAt(1) === '/'
+  //   match[2],[3]   — A href + title
+  //
+  // Tracking <DL> opens (not just closes) means the root <DL> (no H3) is
+  // correctly recorded as a non-folder level, so its </DL> never pops a
+  // real folder off the stack.
+  const tokenRegex =
+    /<H3[^>]*>([^<]+)<\/H3>|<DL\b[^>]*>|<\/DL\b[^>]*>|<A\b[^>]*\bHREF=["']([^"']+)["'][^>]*>([^<]*)<\/A>/gi
 
-    // Check for folder start (H3 tag)
-    const folderMatch = line.match(/<H3[^>]*>([^<]+)<\/H3>/i)
-    if (folderMatch) {
-      const folderName = folderMatch[1].trim()
-      folderStack.push(folderName)
-      continue
-    }
-
-    // Check for folder end (closing DL tag)
-    if (line.match(/<\/DL>/i)) {
-      if (folderStack.length > 0) {
-        folderStack.pop()
+  let match: RegExpExecArray | null
+  while ((match = tokenRegex.exec(content)) !== null) {
+    if (match[1] !== undefined) {
+      // <H3> — record pending folder name; the immediately following <DL>
+      // will claim it as a folder-level list.
+      pendingFolder = match[1].trim()
+    } else if (match[2] !== undefined) {
+      // <A HREF="url">title</A>
+      const url = match[2].trim()
+      const title = (match[3] ?? '').trim() || url
+      bookmarks.push({ url, title, tags: [], folderPath: [...folderStack] })
+    } else if (match[0].charAt(1) !== '/') {
+      // <DL> open — if an H3 was just seen, this DL belongs to that folder.
+      if (pendingFolder !== null) {
+        folderStack.push(pendingFolder)
+        dlIsFolderStack.push(true)
+        pendingFolder = null
+      } else {
+        dlIsFolderStack.push(false)
       }
-      continue
-    }
-
-    // Check for bookmark link
-    const linkMatch = line.match(/<A[^>]+HREF=[\"']([^\"']+)[\"'][^>]*>([^<]+)<\/A>/i)
-    if (linkMatch) {
-      const [, url, title] = linkMatch
-      if (url && title) {
-        bookmarks.push({
-          url: url.trim(),
-          title: title.trim(),
-          tags: [],
-          folder: folderStack.length > 0 ? folderStack[folderStack.length - 1] : 'Ungrouped'
-        })
-      }
+    } else {
+      // </DL> close — only pop the folder stack if this DL owned a folder.
+      if (dlIsFolderStack.pop()) folderStack.pop()
     }
   }
 
   return bookmarks
 }
 
-function parseCSV(csvContent: string): Array<{url: string, title: string, tags: string[], folder?: string}> {
+function parseCSV(csvContent: string): ParsedBookmark[] {
   const lines = csvContent.split('\n').filter(line => line.trim())
-  const bookmarks: Array<{url: string, title: string, tags: string[], folder?: string}> = []
+  const bookmarks: ParsedBookmark[] = []
 
   // Skip header row
   for (let i = 1; i < lines.length; i++) {
@@ -64,10 +77,10 @@ function parseCSV(csvContent: string): Array<{url: string, title: string, tags: 
       const title = matches[0]?.replace(/^"|"$/g, '').replace(/""/g, '"') || ''
       const url = matches[1]?.replace(/^"|"$/g, '').replace(/""/g, '"') || ''
       const tags = matches[2]?.replace(/^"|"$/g, '').replace(/""/g, '"').split(',').map(t => t.trim()).filter(Boolean) || []
-      const folder = matches[3]?.replace(/^"|"/g, '').replace(/""/g, '"') || 'Ungrouped'
+      const folder = matches[3]?.replace(/^"|"$/g, '').replace(/""/g, '"') || ''
 
       if (url && title) {
-        bookmarks.push({ url: url.trim(), title: title.trim(), tags, folder })
+        bookmarks.push({ url: url.trim(), title: title.trim(), tags, folderPath: folder && folder !== 'Ungrouped' ? [folder] : [] })
       }
     }
   }
@@ -75,8 +88,8 @@ function parseCSV(csvContent: string): Array<{url: string, title: string, tags: 
   return bookmarks
 }
 
-function parseMarkdown(markdownContent: string): Array<{url: string, title: string, tags: string[], folder?: string}> {
-  const bookmarks: Array<{url: string, title: string, tags: string[], folder?: string}> = []
+function parseMarkdown(markdownContent: string): ParsedBookmark[] {
+  const bookmarks: ParsedBookmark[] = []
 
   // Regex to match markdown links with optional tags
   const linkRegex = /- \[([^\]]+)\]\(([^)]+)\)(?:\s+#(.+))?/g
@@ -91,7 +104,7 @@ function parseMarkdown(markdownContent: string): Array<{url: string, title: stri
         url: url.trim(),
         title: title.trim(),
         tags,
-        folder: 'Ungrouped'
+        folderPath: [],
       })
     }
   }
@@ -99,29 +112,35 @@ function parseMarkdown(markdownContent: string): Array<{url: string, title: stri
   return bookmarks
 }
 
-function parseJSON(jsonContent: string): Array<{url: string, title: string, tags: string[], folder?: string}> {
+function parseJSON(jsonContent: string): ParsedBookmark[] {
   try {
     const data = JSON.parse(jsonContent)
 
     // Handle LinkMine export format
     type RawEntry = Record<string, unknown>
     if (data.bookmarks && Array.isArray(data.bookmarks)) {
-      return (data.bookmarks as RawEntry[]).map((b) => ({
-        url: String(b.url ?? ''),
-        title: String(b.title ?? ''),
-        tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map(String) : [],
-        folder: b.folder ? String(b.folder) : 'Ungrouped'
-      }))
+      return (data.bookmarks as RawEntry[]).map((b) => {
+        const folder = b.folder ? String(b.folder) : ''
+        return {
+          url: String(b.url ?? ''),
+          title: String(b.title ?? ''),
+          tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map(String) : [],
+          folderPath: folder && folder !== 'Ungrouped' ? [folder] : [],
+        }
+      })
     }
 
     // Handle generic array format
     if (Array.isArray(data)) {
-      return (data as RawEntry[]).map((b) => ({
-        url: String(b.url ?? ''),
-        title: String(b.title ?? b.name ?? ''),
-        tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map(String) : [],
-        folder: b.folder ? String(b.folder) : 'Ungrouped'
-      }))
+      return (data as RawEntry[]).map((b) => {
+        const folder = b.folder ? String(b.folder) : ''
+        return {
+          url: String(b.url ?? ''),
+          title: String(b.title ?? b.name ?? ''),
+          tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map(String) : [],
+          folderPath: folder && folder !== 'Ungrouped' ? [folder] : [],
+        }
+      })
     }
 
     return []
@@ -145,7 +164,7 @@ export async function POST(request: NextRequest) {
     const fileContent = await file.text()
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
-    let bookmarksToImport: Array<{url: string, title: string, tags: string[], folder?: string}> = []
+    let bookmarksToImport: ParsedBookmark[] = []
 
     switch (fileExtension) {
       case 'html':
@@ -174,33 +193,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No valid bookmarks found in file' }, { status: 400 })
     }
 
-    // Batch-fetch existing folders for this user instead of N+1 lookups
-    const folderMap = new Map<string, string>()
-    const uniqueFolders = [...new Set(
-      bookmarksToImport
-        .map(b => b.folder)
-        .filter(folder => folder && folder !== 'Ungrouped')
-    )] as string[]
-
     return await withRLS(auth.userId, async (tx) => {
-      if (uniqueFolders.length > 0) {
-        const existingFolders = await tx.folder.findMany({
-          where: { userId: auth.userId, name: { in: uniqueFolders }, parentId: null },
-          select: { id: true, name: true },
-        })
-        for (const f of existingFolders) folderMap.set(f.name, f.id)
+      // ── Nested folder creation ────────────────────────────────────────────
+      // Collect every ancestor path so parents are always created before children.
+      // e.g. folderPath ['Work', 'Dev'] produces paths ['Work'] and ['Work', 'Dev'].
+      const allPaths = new Set<string>()
+      for (const b of bookmarksToImport) {
+        for (let depth = 1; depth <= b.folderPath.length; depth++) {
+          allPaths.add(b.folderPath.slice(0, depth).join('\x00'))
+        }
+      }
 
-        const foldersToCreate = uniqueFolders.filter(name => !folderMap.has(name))
-        if (foldersToCreate.length > 0) {
-          await tx.folder.createMany({
-            data: foldersToCreate.map(name => ({ name, userId: auth.userId, parentId: null })),
-            skipDuplicates: true,
+      // Sort by depth so parents are always processed before children.
+      const sortedPaths = [...allPaths].sort(
+        (a, b) => a.split('\x00').length - b.split('\x00').length
+      )
+
+      // Map from path-key → folder id, built as we find/create each folder.
+      const folderIdMap = new Map<string, string>()
+
+      for (const pathKey of sortedPaths) {
+        const segments = pathKey.split('\x00')
+        const name = segments[segments.length - 1]
+        const parentKey = segments.length > 1 ? segments.slice(0, -1).join('\x00') : null
+        const parentId = parentKey ? (folderIdMap.get(parentKey) ?? null) : null
+
+        const existing = await tx.folder.findFirst({
+          where: { userId: auth.userId, name, parentId },
+          select: { id: true },
+        })
+
+        if (existing) {
+          folderIdMap.set(pathKey, existing.id)
+        } else {
+          const created = await tx.folder.create({
+            data: { name, userId: auth.userId, parentId },
+            select: { id: true },
           })
-          const newFolders = await tx.folder.findMany({
-            where: { userId: auth.userId, name: { in: foldersToCreate }, parentId: null },
-            select: { id: true, name: true },
-          })
-          for (const f of newFolders) folderMap.set(f.name, f.id)
+          folderIdMap.set(pathKey, created.id)
         }
       }
 
@@ -223,8 +253,8 @@ export async function POST(request: NextRequest) {
             title: bookmark.title,
             tags: bookmark.tags,
             userId: auth.userId,
-            folderId: (bookmark.folder && bookmark.folder !== 'Ungrouped')
-              ? folderMap.get(bookmark.folder) ?? null
+            folderId: bookmark.folderPath.length > 0
+              ? (folderIdMap.get(bookmark.folderPath.join('\x00')) ?? null)
               : null,
           })),
           skipDuplicates: true,

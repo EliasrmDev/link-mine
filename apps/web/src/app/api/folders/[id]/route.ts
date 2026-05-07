@@ -97,40 +97,61 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if ('error' in auth) return auth.error
 
   const { id } = await params
+  const { searchParams } = new URL(request.url)
+  // mode=folder-only → move contents to parent, delete only this folder
+  // mode=cascade (default) → delete folder, all descendants, and their bookmarks
+  const folderOnly = searchParams.get('mode') === 'folder-only'
 
   return withRLS(auth.userId, async (tx) => {
     const existing = await tx.folder.findUnique({ where: { id } })
     if (!existing) return notFound('Folder')
     if (existing.userId !== auth.userId) return forbidden()
 
-    // Collect the target folder and all its descendants
-    const allUserFolders = await tx.folder.findMany({
-      where: { userId: auth.userId },
-      select: { id: true, parentId: true },
-    })
+    if (folderOnly) {
+      // Move direct child folders to this folder's parent (one level up)
+      await tx.folder.updateMany({
+        where: { userId: auth.userId, parentId: id },
+        data: { parentId: existing.parentId },
+      })
 
-    const folderIdsToDelete = new Set<string>([id])
-    const collectDescendants = (parentId: string) => {
-      for (const f of allUserFolders) {
-        if (f.parentId === parentId && !folderIdsToDelete.has(f.id)) {
-          folderIdsToDelete.add(f.id)
-          collectDescendants(f.id)
+      // Move bookmarks that are directly in this folder to the parent folder
+      await tx.bookmark.updateMany({
+        where: { userId: auth.userId, folderId: id },
+        data: { folderId: existing.parentId },
+      })
+
+      // Delete only this folder
+      await tx.folder.delete({ where: { id } })
+    } else {
+      // Cascade: collect the target folder and all its descendants
+      const allUserFolders = await tx.folder.findMany({
+        where: { userId: auth.userId },
+        select: { id: true, parentId: true },
+      })
+
+      const folderIdsToDelete = new Set<string>([id])
+      const collectDescendants = (parentId: string) => {
+        for (const f of allUserFolders) {
+          if (f.parentId === parentId && !folderIdsToDelete.has(f.id)) {
+            folderIdsToDelete.add(f.id)
+            collectDescendants(f.id)
+          }
         }
       }
+      collectDescendants(id)
+
+      const ids = Array.from(folderIdsToDelete)
+
+      // Delete all bookmarks that belong to any of those folders
+      await tx.bookmark.deleteMany({
+        where: { userId: auth.userId, folderId: { in: ids } },
+      })
+
+      // Delete all the folders
+      await tx.folder.deleteMany({
+        where: { id: { in: ids } },
+      })
     }
-    collectDescendants(id)
-
-    const ids = Array.from(folderIdsToDelete)
-
-    // Delete all bookmarks that belong to any of those folders
-    await tx.bookmark.deleteMany({
-      where: { userId: auth.userId, folderId: { in: ids } },
-    })
-
-    // Delete all the folders (deepest-first to avoid FK conflicts)
-    await tx.folder.deleteMany({
-      where: { id: { in: ids } },
-    })
 
     broadcastToUser(auth.userId, { type: 'folders:changed' })
     return new NextResponse(null, { status: 204 })

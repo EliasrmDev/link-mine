@@ -4,9 +4,10 @@ import { signOut } from 'next-auth/react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
-import { Sun, Moon, Download, Upload, ChevronDown, Settings, LogOut, Bookmark, Inbox, Plus, ChevronRight, FolderIcon, Folders, MoreVertical, PanelLeftDashed, Circle } from 'lucide-react'
+import { Sun, Moon, Download, Upload, ChevronDown, Settings, LogOut, Bookmark, Inbox, Plus, Option, ChevronRight, FolderIcon, FolderTree, MoreVertical, PanelLeftDashed, Circle, GripVertical, Trash2 } from 'lucide-react'
 import { useTheme } from '../ThemeProvider'
 import type { Folder } from '@linkmine/shared'
+import { useDroppable, useDraggable } from '@dnd-kit/core'
 
 type SidebarMode = 'toggle' | 'hover'
 
@@ -14,11 +15,16 @@ interface Props {
   user: { name: string; image: string | null }
   folders: Folder[]
   unsortedCount: number
+  /** Live per-folder counts derived from the bookmarks state — overrides stale _count from DB */
+  bookmarkCountByFolderId?: Map<string, number>
   selectedFolderId: string | null | 'all'
   onSelectFolder: (id: string | null | 'all') => void
   onAddFolder: (parentId?: string | null) => void
   onEditFolder: (folder: Folder) => void
   onDeleteFolder: (id: string) => void
+  onBulkDeleteFolders: (ids: string[]) => Promise<void>
+  movingFolderId?: string | null
+  invalidFolderDropIds?: Set<string>
   sidebarMode: SidebarMode
   onSidebarModeChange: (mode: SidebarMode) => void
   sidebarExpanded?: boolean
@@ -29,11 +35,15 @@ export function Sidebar({
   user,
   folders,
   unsortedCount,
+  bookmarkCountByFolderId,
   selectedFolderId,
   onSelectFolder,
   onAddFolder,
   onEditFolder,
   onDeleteFolder,
+  onBulkDeleteFolders,
+  movingFolderId,
+  invalidFolderDropIds,
   sidebarMode,
   onSidebarModeChange,
   sidebarExpanded,
@@ -46,7 +56,24 @@ export function Sidebar({
   const [importing, setImporting] = useState(false)
   const [foldersExpanded, setFoldersExpanded] = useState(true)
   const [controlMenuOpen, setControlMenuOpen] = useState(false)
+  const [folderActionsMenuOpen, setFolderActionsMenuOpen] = useState(false)
+  const [folderSelectMode, setFolderSelectMode] = useState(false)
+  const [selectedFolderIdsForDelete, setSelectedFolderIdsForDelete] = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const toggleFolderForDelete = (id: string) => {
+    setSelectedFolderIdsForDelete((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const exitFolderSelectMode = () => {
+    setFolderSelectMode(false)
+    setSelectedFolderIdsForDelete(new Set())
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,12 +82,14 @@ export function Sidebar({
       setExportMenuOpen(false)
       setImportMenuOpen(false)
       setControlMenuOpen(false)
+      setFolderActionsMenuOpen(false)
+      if (folderSelectMode) exitFolderSelectMode()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder), 0)
+  const totalBookmarksInTree = folders.reduce((sum, folder) => sum + countBookmarksInFolderTree(folder, bookmarkCountByFolderId), 0)
   const allBookmarksCount = totalBookmarksInTree + unsortedCount
   const collapsed = !sidebarExpanded
 
@@ -155,12 +184,13 @@ export function Sidebar({
           onSelect={() => onSelectFolder('none')}
           icon={<Inbox className="h-4 w-4" aria-hidden="true" />}
           collapsed={collapsed}
+          droppableId="drop:unsorted"
         />
 
         {/* Folders */}
         {folders.length > 0 && (
           <div className="mt-3">
-            <div className={`grid grid-cols-[1fr_auto] gap-1.5 items-center justify-between py-1 transition-all duration-300 ${collapsed ? 'flex-col p-0' : ''}`}>
+            <div className={`grid ${collapsed ? 'grid-cols-1' : 'grid-cols-[1fr_auto]'} gap-1.5 h-10 items-center justify-between py-1 transition-all duration-300 ${collapsed ? 'flex-col p-0' : ''}`}>
               <button
                 onClick={() => collapsed ? onToggleSidebar?.() : setFoldersExpanded((e) => !e)}
                 className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ${collapsed ? 'flex-col' : ''}`}
@@ -170,17 +200,49 @@ export function Sidebar({
                 <ChevronDown
                   className={`h-3 w-3 transition-transform duration-200 ${collapsed ? 'lg:hidden' : ''} ${foldersExpanded ? '' : '-rotate-90'}`}
                 />
-                <Folders className="h-4 w-4" aria-hidden="true" />
+                <FolderTree className="h-4 w-4" aria-hidden="true" />
                 <span className={`${collapsed ? 'lg:hidden' : ''}`}>Folders</span>
               </button>
               {foldersExpanded && (
-                <button
-                  onClick={() => onAddFolder(null)}
-                  aria-label="Add folder"
-                  className="rounded p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setFolderActionsMenuOpen((o) => !o)}
+                    aria-label="Folder actions"
+                    aria-haspopup="true"
+                    aria-expanded={folderActionsMenuOpen}
+                    className="rounded mx-auto p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
+                  >
+                    <Option className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  {folderActionsMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setFolderActionsMenuOpen(false)} aria-hidden="true" />
+                      <div
+                        role="menu"
+                        className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                      >
+                        <div className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">Folder actions</div>
+                        <hr className="-mx-1 my-1 border-gray-200 dark:border-gray-700" />
+                        <button
+                          role="menuitem"
+                          onClick={() => { onAddFolder(null); setFolderActionsMenuOpen(false) }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                          <Plus className="h-4 w-4" aria-hidden="true" />
+                          Add folder
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => { setFolderSelectMode(true); setFolderActionsMenuOpen(false) }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-gray-50 dark:text-red-400 dark:hover:bg-gray-700"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          Select to delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
 
@@ -195,9 +257,42 @@ export function Sidebar({
                   onAddChild={(parentId) => onAddFolder(parentId)}
                   onEdit={onEditFolder}
                   onDelete={onDeleteFolder}
+                  bookmarkCountByFolderId={bookmarkCountByFolderId}
+                  movingFolderId={movingFolderId}
+                  invalidFolderDropIds={invalidFolderDropIds}
+                  selectMode={folderSelectMode}
+                  selectedForDeleteIds={selectedFolderIdsForDelete}
+                  onToggleSelect={toggleFolderForDelete}
                 />
               ))}
             </div>
+
+            {/* Bulk-delete confirmation bar */}
+            {folderSelectMode && (
+              <div className="mt-2 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
+                <span className="text-xs text-red-700 dark:text-red-400">
+                  {selectedFolderIdsForDelete.size} selected
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={exitFolderSelectMode}
+                    className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={selectedFolderIdsForDelete.size === 0}
+                    onClick={async () => {
+                      await onBulkDeleteFolders(Array.from(selectedFolderIdsForDelete))
+                      exitFolderSelectMode()
+                    }}
+                    className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-900/30"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -457,10 +552,10 @@ Total processed: ${result.total}`)
   )
 }
 
-function countBookmarksInFolderTree(folder: Folder): number {
-  const ownCount = folder._count?.bookmarks ?? 0
+function countBookmarksInFolderTree(folder: Folder, countMap?: Map<string, number>): number {
+  const ownCount = countMap ? (countMap.get(folder.id) ?? 0) : (folder._count?.bookmarks ?? 0)
   const childrenCount = (folder.children ?? []).reduce(
-    (sum, child) => sum + countBookmarksInFolderTree(child),
+    (sum, child) => sum + countBookmarksInFolderTree(child, countMap),
     0,
   )
   return ownCount + childrenCount
@@ -473,6 +568,7 @@ function SidebarItem({
   onSelect,
   icon,
   collapsed,
+  droppableId,
 }: {
   label: string
   count?: number
@@ -480,18 +576,24 @@ function SidebarItem({
   onSelect: () => void
   icon?: React.ReactNode
   collapsed?: boolean
+  droppableId?: string
 }) {
+  const { setNodeRef, isOver } = useDroppable({ id: droppableId ?? `sidebar-${label}` })
+
   return (
     <button
+      ref={setNodeRef}
       onClick={onSelect}
       aria-current={selected ? 'page' : undefined}
       title={collapsed ? label : undefined}
       className={`flex w-full items-center rounded-lg py-2 mb-1 text-sm transition-colors ${
         collapsed ? 'lg:justify-center lg:px-2 gap-2 px-3' : 'gap-2 px-3'
       } ${
-        selected
-          ? 'bg-brand-50 font-medium text-brand-400 dark:bg-brand-900/30 dark:text-brand-300'
-          : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+        isOver
+          ? 'bg-brand-100 ring-2 ring-brand-400 dark:bg-brand-900/50'
+          : selected
+            ? 'bg-brand-50 font-medium text-brand-400 dark:bg-brand-900/30 dark:text-brand-300'
+            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
       }`}
     >
       {icon}
@@ -510,6 +612,12 @@ function FolderItem({
   onAddChild,
   onEdit,
   onDelete,
+  bookmarkCountByFolderId,
+  movingFolderId,
+  invalidFolderDropIds,
+  selectMode,
+  selectedForDeleteIds,
+  onToggleSelect,
 }: {
   folder: Folder
   selectedFolderId: string | null | 'all'
@@ -517,10 +625,23 @@ function FolderItem({
   onAddChild: (parentId: string) => void
   onEdit: (folder: Folder) => void
   onDelete: (id: string) => void
+  bookmarkCountByFolderId?: Map<string, number>
+  movingFolderId?: string | null
+  invalidFolderDropIds?: Set<string>
+  selectMode?: boolean
+  selectedForDeleteIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const hasChildren = (folder.children?.length ?? 0) > 0
+  const isSelectedForDelete = !!selectedForDeleteIds?.has(folder.id)
+  const isInvalidDrop = !!invalidFolderDropIds?.has(folder.id)
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `folder:${folder.id}`, disabled: isInvalidDrop })
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: `drag-folder:${folder.id}`,
+    data: { type: 'folder', id: folder.id, parentId: folder.parentId, name: folder.name },
+  })
 
   useEffect(() => {
     if (!menuOpen) return
@@ -530,33 +651,72 @@ function FolderItem({
   }, [menuOpen])
 
   return (
-    <div>
+    <div ref={setDragRef} className={isDragging ? 'opacity-40' : undefined}>
       <div className="group flex items-center">
+        {/* Checkbox (select mode) */}
+        {selectMode && (
+          <input
+            type="checkbox"
+            checked={!!isSelectedForDelete}
+            onChange={() => onToggleSelect?.(folder.id)}
+            aria-label={`Select ${folder.name} for deletion`}
+            className="mr-1 shrink-0 cursor-pointer accent-red-500"
+          />
+        )}
+
+        {/* Drag handle */}
+        <button
+          {...listeners}
+          {...attributes}
+          aria-label={`Drag ${folder.name}`}
+          tabIndex={-1}
+          className="shrink-0 cursor-grab active:cursor-grabbing rounded p-0.5 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400 transition-opacity"
+        >
+          <GripVertical className="h-3 w-3" aria-hidden="true" />
+        </button>
+
         {/* Expand/collapse toggle */}
         <button
           onClick={() => setExpanded((e) => !e)}
           aria-label={expanded ? 'Collapse folder' : 'Expand folder'}
-          className={`shrink-0 rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ${!hasChildren ? 'invisible' : ''}`}
+          className={`shrink-0 rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ${!hasChildren ? 'hidden' : ''}`}
         >
           <ChevronRight className={`h-3 w-3 transition-transform ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
         </button>
 
         <button
-          onClick={() => onSelect(folder.id)}
-          aria-current={selectedFolderId === folder.id ? 'page' : undefined}
+          ref={setDropRef}
+          onClick={() => selectMode ? onToggleSelect?.(folder.id) : onSelect(folder.id)}
+          aria-current={!selectMode && selectedFolderId === folder.id ? 'page' : undefined}
           title={folder.name}
           className={`flex flex-1 w-full truncate items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors ${
-            selectedFolderId === folder.id
-              ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-              : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+            selectMode
+              ? isSelectedForDelete
+                ? 'bg-red-50 text-red-700 ring-1 ring-red-300 dark:bg-red-950/30 dark:text-red-400'
+                : 'text-gray-700 hover:bg-red-50 dark:text-gray-300 dark:hover:bg-red-950/20'
+              : isInvalidDrop && invalidFolderDropIds
+                ? 'opacity-40 cursor-not-allowed text-gray-400 dark:text-gray-600'
+                : isOver
+                  ? 'bg-brand-100 ring-2 ring-brand-400 dark:bg-brand-900/50'
+                  : selectedFolderId === folder.id
+                    ? 'bg-brand-50 font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
           }`}
         >
-          <FolderIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {movingFolderId === folder.id ? (
+            <svg className="h-4 w-4 shrink-0 animate-spin text-brand-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <FolderIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          )}
           <span className="truncate text-left">{folder.name}</span>
-          <span className="text-xs text-gray-400">{folder._count?.bookmarks ?? 0}</span>
+          <span className="text-xs text-gray-400">{bookmarkCountByFolderId ? (bookmarkCountByFolderId.get(folder.id) ?? 0) : (folder._count?.bookmarks ?? 0)}</span>
         </button>
 
         {/* Context menu trigger */}
+        {!selectMode && (
         <div className="relative">
           <button
             onClick={() => setMenuOpen((o) => !o)}
@@ -600,6 +760,7 @@ function FolderItem({
             </>
           )}
         </div>
+        )}
       </div>
 
       {/* Sub-folders */}
@@ -614,6 +775,12 @@ function FolderItem({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onDelete={onDelete}
+              bookmarkCountByFolderId={bookmarkCountByFolderId}
+              movingFolderId={movingFolderId}
+              invalidFolderDropIds={invalidFolderDropIds}
+              selectMode={selectMode}
+              selectedForDeleteIds={selectedForDeleteIds}
+              onToggleSelect={onToggleSelect}
             />
           ))}
         </div>
