@@ -312,6 +312,8 @@ interface Props {
   showOldLinks?: boolean
   /** Initial value from DB; takes precedence over localStorage */
   initialBordersEnabled?: boolean
+  /** Use CSS columns (masonry) layout instead of uniform grid */
+  masonryEnabled?: boolean
   // Selection
   selectionMode?: boolean
   selectedIds?: Set<string>
@@ -324,7 +326,7 @@ interface Props {
   movingBookmarkId?: string | null
 }
 
-export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onDomainPreferenceChange, onEdit, onDelete, onBulkDelete, showOldLinks, initialBordersEnabled, selectionMode = false, selectedIds = new Set(), onToggleSelect, onToggleGroupSelect, onSelectRange, movingBookmarkId }: Props) {
+export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onDomainPreferenceChange, onEdit, onDelete, onBulkDelete, showOldLinks, initialBordersEnabled, masonryEnabled = true, selectionMode = false, selectedIds = new Set(), onToggleSelect, onToggleGroupSelect, onSelectRange, movingBookmarkId }: Props) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [loadingPreferences, setLoadingPreferences] = useState(false)
   const pendingGroupingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -636,7 +638,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                 {groupedBookmarks.reduce((sum, group) => sum + 1 + (group.children?.length || 0), 0)} links
               </span>
             </div>
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+            <ul className={masonryEnabled ? 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} role="list">
               {groupedBookmarks.map((bookmark) => (
                 <BookmarkCard
                   key={bookmark.id}
@@ -656,6 +658,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                   onToggleSelect={onToggleSelect}
                   onToggleGroupSelect={onToggleGroupSelect}
                   isMoving={movingBookmarkId === bookmark.id}
+                  masonryEnabled={masonryEnabled}
                 />
               ))}
             </ul>
@@ -673,7 +676,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                 {individualBookmarks.length} links
               </span>
             </div>
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+            <ul className={masonryEnabled ? 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} role="list">
               {individualBookmarks.map((bookmark) => (
                 <BookmarkCard
                   key={bookmark.id}
@@ -689,6 +692,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                   isSelected={selectedIds.has(bookmark.id)}
                   onToggleSelect={onToggleSelect}
                   isMoving={movingBookmarkId === bookmark.id}
+                  masonryEnabled={masonryEnabled}
                 />
               ))}
             </ul>
@@ -711,7 +715,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
           {groupedStaleBookmarks.length > 0 && (
             <div className="mb-6 opacity-70">
               <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">Grouped</div>
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+              <ul className={masonryEnabled ? 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} role="list">
                 {groupedStaleBookmarks.map((bookmark) => (
                   <BookmarkCard
                     key={bookmark.id}
@@ -731,6 +735,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                     onToggleSelect={onToggleSelect}
                     onToggleGroupSelect={onToggleGroupSelect}
                     isMoving={movingBookmarkId === bookmark.id}
+                    masonryEnabled={masonryEnabled}
                   />
                 ))}
               </ul>
@@ -741,7 +746,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
           {individualStaleBookmarks.length > 0 && (
             <div className="opacity-70">
               <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">Individual</div>
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" role="list">
+              <ul className={masonryEnabled ? 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-3' : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} role="list">
                 {individualStaleBookmarks.map((bookmark) => (
                   <BookmarkCard
                     key={bookmark.id}
@@ -757,6 +762,7 @@ export function BookmarkGrid({ bookmarks, total, loading, domainPreferences, onD
                     isSelected={selectedIds.has(bookmark.id)}
                     onToggleSelect={onToggleSelect}
                     isMoving={movingBookmarkId === bookmark.id}
+                    masonryEnabled={masonryEnabled}
                   />
                 ))}
               </ul>
@@ -785,6 +791,7 @@ function BookmarkCard({
   onToggleSelect,
   onToggleGroupSelect,
   isMoving = false,
+  masonryEnabled = true,
 }: {
   bookmark: DomainGroupedBookmark
   onEdit: (b: Bookmark) => void
@@ -802,6 +809,7 @@ function BookmarkCard({
   onToggleSelect?: (id: string) => void
   onToggleGroupSelect?: (ids: string[]) => void
   isMoving?: boolean
+  masonryEnabled?: boolean
 }) {
   const domain = (() => {
     try { return new URL(bookmark.url).hostname } catch { return '' }
@@ -833,7 +841,7 @@ function BookmarkCard({
       <li
         data-bookmark-id={bookmark.id}
         data-bookmark-children={(bookmark.children?.map((c) => c.id) ?? []).join(',')}
-        className="space-y-1 relative"
+        className={`space-y-1 relative${masonryEnabled ? ' break-inside-avoid mb-3' : ''}`}
       >
         {/* Parent bookmark card */}
         <div
@@ -1003,7 +1011,7 @@ function BookmarkCard({
       style={dragStyle}
       {...listeners}
       {...attributes}
-      className={`card group flex flex-col justify-between p-4 transition hover:shadow-md relative touch-none ${
+      className={`card group flex flex-col justify-between p-4 transition hover:shadow-md relative touch-none${masonryEnabled ? ' break-inside-avoid mb-3' : ''} ${
         due ? 'ring-1 ring-amber-400 dark:ring-amber-500' : ''
       } ${selectionMode && isSelected ? 'ring-2 ring-brand-500' : ''} ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} ${isMoving ? 'animate-bookmark-move' : ''}`}
     >

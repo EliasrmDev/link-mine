@@ -176,6 +176,18 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
   const [pageSize, setPageSize] = useState(Infinity)
   const [currentPage, setCurrentPage] = useState(1)
 
+  // Masonry (columns) layout toggle — persisted to localStorage
+  const [masonryEnabled, setMasonryEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('linkmine_masonry') !== 'false' } catch { return true }
+  })
+  const toggleMasonry = useCallback(() => {
+    setMasonryEnabled((v) => {
+      const next = !v
+      try { localStorage.setItem('linkmine_masonry', next ? 'true' : 'false') } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
   // Selection state for bulk operations
   const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<Set<string>>(new Set())
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set())
@@ -1103,6 +1115,8 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
             allSelected={filteredBookmarks.length > 0 && filteredBookmarks.every((b) => selectedBookmarkIds.has(b.id))}
             onSelectAll={() => selectAllBookmarks(filteredBookmarks.map((b) => b.id))}
             onDeselectAll={clearSelection}
+            masonryEnabled={masonryEnabled}
+            onToggleMasonry={toggleMasonry}
           />
         )}
 
@@ -1142,6 +1156,7 @@ export function DashboardClient({ initialBookmarks, initialFolders, initialTagsW
                 onDelete={handleDeleteBookmark}
                 onBulkDelete={handleGroupBulkDelete}
                 showOldLinks={showOldLinks}
+                masonryEnabled={masonryEnabled}
                 initialBordersEnabled={
                   initialDashboardPrefs['dashboard:borders_global'] !== undefined
                     ? initialDashboardPrefs['dashboard:borders_global'] !== 'false'

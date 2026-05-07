@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckSquare, Filter, Square, X } from 'lucide-react'
+import { CheckSquare, Filter, LayoutGrid, Columns3, Square, X } from 'lucide-react'
 import type { BookmarkFilters } from '@linkmine/shared'
 
 interface Props {
@@ -15,9 +15,11 @@ interface Props {
   allSelected?: boolean
   onSelectAll?: () => void
   onDeselectAll?: () => void
+  masonryEnabled?: boolean
+  onToggleMasonry?: () => void
 }
 
-export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, onReset, onClose, selectionMode, allSelected, onSelectAll, onDeselectAll }: Props) {
+export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, onReset, onClose, selectionMode, allSelected, onSelectAll, onDeselectAll, masonryEnabled, onToggleMasonry }: Props) {
   const [open, setOpen] = useState(false)
 
   const activeCount = [
@@ -66,6 +68,24 @@ export function FilterBar({ filters, allTagsWithCounts, iconsInUse, onChange, on
               ? <CheckSquare className="h-3.5 w-3.5" aria-hidden="true" />
               : <Square className="h-3.5 w-3.5" aria-hidden="true" />}
             {allSelected ? 'Deselect All' : 'Select All'}
+          </button>
+        )}
+
+        {/* Masonry layout toggle */}
+        {onToggleMasonry && (
+          <button
+            onClick={onToggleMasonry}
+            className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+              masonryEnabled
+                ? 'bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400'
+                : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+            }`}
+            aria-pressed={masonryEnabled}
+            title={masonryEnabled ? 'Switch to grid layout' : 'Switch to masonry layout'}
+          >
+            {masonryEnabled
+              ? <Columns3 className="h-3.5 w-3.5" aria-hidden="true" />
+              : <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />}
           </button>
         )}
 
